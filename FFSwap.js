@@ -271,3 +271,19 @@ switch(cmd)
 	    throw "Invalid cmd";
 }
 }
+
+"public"
+function GetPools(ArrPoolAcc)
+{
+    var Pools=[], Item;
+    for(var i=0; i<ArrPoolAcc.length; i++)
+    {
+        Item=ReadState(ArrPoolAcc[i]);
+        if(Item.pprev)
+        {
+            Item.Currency=ReadAccount(ArrPoolAcc[i]).Currency;
+            Pools.push(Item);
+        }
+    }
+    return Pools;
+}
