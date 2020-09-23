@@ -4,6 +4,7 @@
 //        ToLog("INFO:\n"+JSON.stringify(INFO));
 //        ToLog("BASE_ACCOUNT:\n"+JSON.stringify(BASE_ACCOUNT));
 //        ToLog("SMART:\n"+JSON.stringify(SMART));
+        UpdatePoolList();
     });
 
     window.addEventListener('History',function (e)
@@ -53,7 +54,248 @@
     //-------------
 
 var UState={Num:0}, SState, U_ACCOUNT, PanelID=0, InfoWaitx=0;
-var ArrPool=[], ArrPoolLast=[];
+var ArrPool=[], ArrPoolListLast=[], ArrPoolList=[], ArrPoolState=[];
+
+
+function UpdateInfo()
+{
+    SState=BASE_ACCOUNT.SmartState;
+    //UserState information
+    if(!USER_ACCOUNT.length||!GetAccount(0))
+    {
+        //ToggleButtonByClass("btn-header",true);
+        SelectPanel(3);
+    }
+    else
+    {
+        //PoolList is key item for update.
+        //update selected pool infomation.
+        //ToggleButtonByClass("btn-header",false);
+        var UserAcc=+$("idAccount").value;
+        U_ACCOUNT=USER_ACCOUNT_MAP[UserAcc];
+        UState=U_ACCOUNT.SmartState;
+        //ToLog("U_ACCOUNT:\n"+JSON.stringify(U_ACCOUNT));   
+        //ToLog("SState:\n"+JSON.stringify(SState));   
+        //ToLog("UState:\n"+JSON.stringify(UState));
+        if(PanelID==3)
+            SelectPanel(0);
+        if(!UState.peer&&U_ACCOUNT.Currency&&!UState.pprev)
+            SelectPanel(2);
+        //update swap panel
+        if(UState.peer)
+        {
+            if(!GetPoolCurrency($("idOutputPool").value))
+            {
+                $("idOutputAcc").disabled=false;
+                FillSelect("idOutputAcc",GetAccount(0));
+                $("idOutputAcc").value=UState.peer;
+                $("idOutputAcc").disabled=true;
+            }
+            if(!GetPoolCurrency($("idInputPool").value))
+            {
+                FillSelect("idInputAcc",GetAccount(0));
+                $("idInputAcc").value=UState.peer;
+                $("idInputAcc").disabled=true;
+            }    
+        }        
+        //update pool panel
+        if(GetPoolByCurrency(U_ACCOUNT.Currency))
+        {
+            $("idPoolBtn").disabled=true;
+            $("idPoolNew").innerText="["+MapCurrency[U_ACCOUNT.Currency]+"]: Pool Existed";
+        }
+        else
+        {
+            $("idPoolBtn").disabled=false;
+            $("idPoolNew").innerText="["+MapCurrency[U_ACCOUNT.Currency]+"]: "+U_ACCOUNT.Num;
+        }
+        $("idPPool").value=GetPoolByCurrency(U_ACCOUNT.Currency);
+        //update account panel
+        FillSelect("idCurrency",GetCurrencyList());
+        FillSelect("idPeerNew",GetAccount(0));
+        if(U_ACCOUNT.Currency)
+        {
+            $("idPeerBtn").disabled=false;
+            $("idPeerNew").disabled=false;
+        }
+        else
+        {
+            $("idPeerBtn").disabled=true;
+            $("idPeerNew").disabled=true;            
+        }
+        //update arrpool
+        var ArrPoolAcc=[];
+        var ArrPoolAccCan=[parseInt($("idOutputPool").value),parseInt($("idInputPool").value),parseInt($("idPPool").value)];
+        ArrPoolAccCan=UniqArr(ArrPoolAccCan);
+        for(var i=0; i<ArrPoolAccCan.length; i++)
+        {
+            if(ArrPoolAccCan[i]&&ArrPoolAccCan[i]!=SState.Num)
+                ArrPoolAcc.push(ArrPoolAccCan[i]);
+        }
+        if(ArrPoolAcc.length)
+            UpdatePoolState(ArrPoolAcc); //update poolstates
+        //update poolstate
+        PoolState=GetPoolState(U_ACCOUNT.Currency);
+        //ToLog(PoolState);
+        if(PoolState)
+        {
+            $("idPTokenAll").innerText=FLOAT_FROM_COIN(PoolState.token).toFixed(2);
+            $("idPCoinAll").innerText=FLOAT_FROM_COIN(PoolState.coin).toFixed(2);
+            $("idPShare").innerText=PoolState.share?UState.share/PoolState.share:0;
+            $("idPCurr").innerText=MapCurrency[U_ACCOUNT.Currency];
+        }
+        if(U_ACCOUNT.Currency&&!InfoWait)
+        {
+            $("idAddBtn").disabled=false;
+            $("idRemoveBtn").disabled=false;
+        }
+        else
+        {
+            $("idAddBtn").disabled=true;
+            $("idRemoveBtn").disabled=true;
+        }
+        $("idSendCount").innerText=CountWait;
+    }
+}
+
+function SendMethod(cmd)
+{
+    var UserAcc=+$("idAccount").value;
+    var Params={cmd:cmd};
+    switch (cmd) 
+    {
+        case "bind": //Params:{cmd, poola}
+            Params.poola=$("idPeerNew").value;
+        break;        
+        case "new": //Params:{cmd, poola}
+            Params.poola=FindPoolPos(U_ACCOUNT.Currency);
+        break;
+        case "add": //Params:{cmd, poola, output, input}
+            Params.poola=$("idPPool").value;            
+            Params.output=$("idPToken").value;
+            Params.input=$("idPCoin").value;
+            if(Params.output<1e-9)
+            {
+                SetErr("ERR: " +"small output");
+                return;
+            }            
+        break;
+        case "remove": //Params:{cmd, poola, output}
+            Params.poola=$("idPPool").value;
+            Params.output=$("idPToken").value;
+            if(Params.output<1e-9)
+            {
+                SetErr("ERR: " +"small output");
+                return;
+            }
+        break;
+        case "trade": //Params:{cmd, poola, poolb, output, payee, slide}
+            Params.poola=parseInt($("idOutputPool").value);
+            Params.poolb=parseInt($("idInputPool").value);
+            Params.output=parseFloat($("idOutput").value);
+            Params.slide=parseFloat($("idSlide").value)?parseFloat($("idSlide").value):0;
+            Params.payee=$("idInputAcc").value;
+            if((Params.poola==SState.Num&&Params.poolb==SState.Num)||Params.output<1e-9)
+            {
+                SetErr("ERR: " +"small output");
+                return;
+            }
+        break;
+        default:
+            return;
+    }
+    ToLog("Params:\n"+JSON.stringify(Params));
+    SendCall(UserAcc,"Round",Params,UserAcc);
+    UpdateSend(cmd,WAITSEND);
+}
+
+function UpdateSend(cmd,wait)
+{
+    var ArrIcon={"new":"plus","logo":"foot","bind":"bind","add":"income","remove":"outcome","trade":"trade"};
+    $("idSendIcon").innerHTML="<svg class=\"sqr-13\"><use fill=\"#722F0d\" xlink:href=\"#"+ArrIcon[cmd]+"\" /></svg>";
+    $("idSendInfo").innerText="Tx submitting, please standby...";    
+    StartWait(wait);
+    InfoWait=true;
+}
+
+var idWait=0, CountWait=0, InfoWait=false;
+function StartWait(count,cmd)
+{
+    StopWait();
+    for (var i = 0; i < $$("btn").length; i++)
+        $$("btn")[i].disabled = true;
+    TogglePanel("idSendTx");
+    idWait=setInterval(function ()
+    {
+        CountWait++;
+        if(CountWait>count)
+        StopWait();
+    },1000);
+}
+
+function StopWait()
+{
+    if(idWait)
+    {
+        clearInterval(idWait);
+        idWait=0;
+        CountWait=0;
+        TogglePanel("idSendTx",1);
+        for (var i = 0; i < $$("btn").length; i++)
+            $$("btn")[i].disabled = false;
+    }
+}
+
+const WAITSEND=10; WAITDONE=1;
+function SetInfo(Result)
+{
+    InfoWait=false;
+    $("idInfo").innerHTML=JSON.stringify(Result);
+    CountWait=WAITSEND-WAITDONE;
+    $("idSendInfo").innerHTML="Tx confirmed, "+Result.Act+" done";
+    if(Result.Act=="new")
+        UpdatePoolList();
+}
+
+function SetErr(Result)
+{
+    InfoWait=false;
+    $("idSendIcon").innerHTML="<svg class=\"sqr-13\"><use fill=\"brown\" xlink:href=\"#cancel\" /></svg>"
+    $("idSendInfo").innerText=Result;
+    StartWait(WAITDONE);
+}
+
+function UniqArr(Arr)
+{
+    return Array.from(new Set(Arr));
+}
+
+function UpdatePoolState(ArrPoolAcc)
+{
+    Call(BASE_ACCOUNT.Num, "GetPools", ArrPoolAcc, function (Err,RetValue)
+    {
+        if(Err)
+            SetStatus("Err="+Err+"  RetValue="+JSON.stringify(RetValue));
+        else
+            ArrPoolState=RetValue;
+        //ToLog(ArrPoolState);
+    })
+}
+
+function UpdatePoolIO(i)
+{
+    if(PoolState)
+    {
+        var price=FLOAT_FROM_COIN(PoolState.token)/FLOAT_FROM_COIN(PoolState.coin);
+        if(price)
+        {
+            if(i==1)
+                $("idPCoin").value=parseFloat($("idPToken").value)/price;
+            else if(i==2)
+                $("idPToken").value=parseFloat($("idPCoin").value)*price;
+        }
+    }
+}
 
 function GetCurrencyList()
 {
@@ -69,9 +311,9 @@ function GetCurrencyList()
 function GetPoolList()
 {
     var Arr=[];
-    for(var i=0; i<ArrPool.length; i++)
+    for(var i=0; i<ArrPoolList.length; i++)
     {
-        var Value={value: ArrPool[i].Num, text:ArrPool[i].Num+". "+MapCurrency[ArrPool[i].Currency]};
+        var Value={value: ArrPoolList[i].Num, text:ArrPoolList[i].Num+". "+MapCurrency[ArrPoolList[i].Currency]};
         Arr.push(Value);
     }
     return Arr;
@@ -79,41 +321,40 @@ function GetPoolList()
 
 function GetPoolCurrency(pool)
 {
-    for(var i=0; i<ArrPool.length; i++)
+    for(var i=0; i<ArrPoolList.length; i++)
     {
-        if(parseInt(pool)==ArrPool[i].Num)
-            return ArrPool[i].Currency;
+        if(parseInt(pool)==ArrPoolList[i].Num)
+            return ArrPoolList[i].Currency;
     }
     return 0;
 }
 
 function GetPoolByCurrency(curr)
 {
-    for(var i=0; i<ArrPool.length; i++)
+    for(var i=0; i<ArrPoolList.length; i++)
     {
-        if(parseInt(curr)==ArrPool[i].Currency)
-            return ArrPool[i].Num;
+        if(parseInt(curr)==ArrPoolList[i].Currency)
+            return ArrPoolList[i].Num;
     }
     return 0;    
 }
 
 function GetPoolState(curr)
 {
-    for(var i=0; i<ArrPool.length; i++)
+    for(var i=0; i<ArrPoolState.length; i++)
     {
-        if(parseInt(curr)==ArrPool[i].Currency)
-            return ArrPool[i];
+        if(parseInt(curr)==ArrPoolState[i].Currency)
+            return ArrPoolState[i];
     }
-    return 0;    
+    return 0;
 }
 
 function FindPoolPos(curr)
 {
 var Num=BASE_ACCOUNT.Num;
-ToLog(curr);
-for(var i=0;i<ArrPool.length;i++)
+for(var i=0;i<ArrPoolList.length;i++)
 {
-    var Item=ArrPool[i];
+    var Item=ArrPoolList[i];
     if(Item.Currency==parseInt(curr))
     {
         Num=0;
@@ -123,7 +364,6 @@ for(var i=0;i<ArrPool.length;i++)
         break;
     Num=Item.Num;
 }
-ToLog(Num);
 return Num;
 }
 
@@ -142,57 +382,30 @@ function GetAccount(curr)
     return Arr;
 }
 
-var ArrOutIn=[{"Acc":0, "AccId":"idOutputAcc", "Pool":0, "Curr":0, "Amount":0}, {"Acc":0, "AccId":"idInputAcc", "Pool":0, "Curr":0, "Amount":0}];
-
-function OnSelectPool(elm, outIn)
+function UpdatePoolList()
 {
-    ArrOutIn[outIn].Pool=elm.value;
-    ArrOutIn[outIn].Curr=GetPoolCurrency(ArrOutIn[outIn].Pool);
-    var arrAcc=GetAccount(ArrOutIn[outIn].Curr);
-    if(arrAcc.length)
+    FindPool(function()
     {
-        if(ArrOutIn[outIn].Curr)
+        if(ArrPoolListLast.length>ArrPoolList.length)
         {
-            FillSelect(ArrOutIn[outIn].AccId,arrAcc);
-            $(ArrOutIn[outIn].AccId).disabled=false;
-            $("idAccount").value=arrAcc[0].value;
+            ArrPoolList=ArrPoolListLast;
+            var lstPool=GetPoolList();
+            FillSelect("idOutputPool",lstPool);
+            FillSelect("idInputPool",lstPool);
+            FillSelect("idPPool",lstPool);
         }
-        else 
-        {
-            FillSelect(ArrOutIn[outIn].AccId,[]);
-            $(ArrOutIn[outIn].AccId).disabled=true;
-        }
-    }
-    else //new account
-    {
-        $("idInfo").innerText="new account";
-        FillSelect(ArrOutIn[outIn].AccId,[{text:"Create new...",value:1}]);
-        $(ArrOutIn[outIn].AccId).value="";
-    }
-}
-
-function OnSelectAcc(elm, outIn)
-{
-    var poolAcc=outIn==1?$("idOutputPool").value:$("idInputPool").value;
-    var poolCurr=GetPoolCurrency(poolAcc);
-    if(elm.value==="1")
-    {
- //       $("idInfo").innerText="new xxxx";
-        CreateNewAccount(1,poolCurr);
-    }
-    else if(poolCurr)
-        $("idAccount").value=elm.value;
+    });
 }
 
 function FindPool(F)
 {
-ArrPoolLast=[];
+ArrPoolListLast=[];
 FindPoolNext(BASE_ACCOUNT.Num, function ()
 {
 //SetShareData();
 if(F)
 F();
-ToLog("ArrPoolLast:\n"+JSON.stringify(ArrPoolLast));
+ToLog("ArrPoolLast:\n"+JSON.stringify(ArrPoolListLast));
 //UpdateInfo();
 });
 }
@@ -208,7 +421,7 @@ if(!AccNum)
 //loop of pool
 GetState(AccNum, function (Item)
 {
-ArrPoolLast.push(Item);
+ArrPoolListLast.push(Item);
 FindPoolNext(Item.pnext,F); // <-- next pool
 });
 }
@@ -270,217 +483,7 @@ function TogglePanelByClass(panel,i)
             panels[i].style.display = "none"?"flex":"none";        
 }
 
-var idWait=0, CountWait=0, InfoWait=false;
-function StartWait(count,cmd)
-{
-    StopWait();
-    for (var i = 0; i < $$("btn").length; i++)
-        $$("btn")[i].disabled = true;
-    //if(cmd!=8)
-        //$("idSpinner").style.display = "flex";
-    TogglePanel("idSendTx");
-    idWait=setInterval(function ()
-    {
-        CountWait++;
-        if(CountWait>count)
-        StopWait();
-    },1000);
-}
-
-function StopWait()
-{
-    if(idWait)
-    {
-        clearInterval(idWait);
-        idWait=0;
-        CountWait=0;
-        TogglePanel("idSendTx",1);
-        for (var i = 0; i < $$("btn").length; i++)
-            $$("btn")[i].disabled = false;
-    }
-}
-
-function UpdateSend(cmd,wait)
-{
-    var ArrIcon={"new":"plus","logo":"foot","bind":"bind","add":"income","remove":"outcome","trade":"trade"};
-    $("idSendIcon").innerHTML="<svg class=\"sqr-13\"><use fill=\"#722F0d\" xlink:href=\"#"+ArrIcon[cmd]+"\" /></svg>";
-    $("idSendInfo").innerText="Tx submitting, please standby...";    
-    StartWait(wait);
-}
-
 var PoolState;
-
-function UpdateInfo()
-{
-    SState=BASE_ACCOUNT.SmartState;
-    //UserState information
-    if(!USER_ACCOUNT.length||!GetAccount(0))
-    {
-        //ToggleButtonByClass("btn-header",true);
-        SelectPanel(3);
-    }
-    else
-    {
-        //ToggleButtonByClass("btn-header",false);
-        var UserAcc=+$("idAccount").value;
-        U_ACCOUNT=USER_ACCOUNT_MAP[UserAcc];
-        UState=U_ACCOUNT.SmartState;
-        //ToLog("U_ACCOUNT:\n"+JSON.stringify(U_ACCOUNT));   
-        //ToLog("SState:\n"+JSON.stringify(SState));   
-        //ToLog("UState:\n"+JSON.stringify(UState));
-        if(PanelID==3)
-            SelectPanel(0);
-        if(!UState.peer&&U_ACCOUNT.Currency&&!UState.pprev)
-            SelectPanel(2);
-        //update swap panel
-        if(UState.peer)
-        {
-            if(!GetPoolCurrency($("idOutputPool").value))
-            {
-                $("idOutputAcc").disabled=false;
-                FillSelect("idOutputAcc",GetAccount(0));
-                $("idOutputAcc").value=UState.peer;
-                $("idOutputAcc").disabled=true;
-            }
-            if(!GetPoolCurrency($("idInputPool").value))
-            {
-                FillSelect("idInputAcc",GetAccount(0));
-                $("idInputAcc").value=UState.peer;
-                $("idInputAcc").disabled=true;
-            }    
-        }        
-        //update pool panel
-        if(GetPoolByCurrency(U_ACCOUNT.Currency))
-        {
-            $("idPoolBtn").disabled=true;
-            $("idPoolNew").innerText="["+MapCurrency[U_ACCOUNT.Currency]+"]: Pool Existed";
-        }
-        else
-        {
-            $("idPoolBtn").disabled=false;
-            $("idPoolNew").innerText="["+MapCurrency[U_ACCOUNT.Currency]+"]: "+U_ACCOUNT.Num;
-        }
-        $("idPPool").value=GetPoolByCurrency(U_ACCOUNT.Currency);
-        PoolState=GetPoolState(U_ACCOUNT.Currency);
-        if(PoolState)
-        {
-            $("idPTokenAll").innerText=FLOAT_FROM_COIN(PoolState.token).toFixed(2);
-            $("idPCoinAll").innerText=FLOAT_FROM_COIN(PoolState.coin).toFixed(2);
-            $("idPShare").innerText=PoolState.share?UState.share/PoolState.share:0;
-            $("idPCurr").innerText=MapCurrency[U_ACCOUNT.Currency];
-        }
-        if(U_ACCOUNT.Currency&&!InfoWait)
-        {
-            $("idAddBtn").disabled=false;
-            $("idRemoveBtn").disabled=false;
-        }
-        else
-        {
-            $("idAddBtn").disabled=true;
-            $("idRemoveBtn").disabled=true;
-        }
-        //update account panel
-        FillSelect("idCurrency",GetCurrencyList());
-        FillSelect("idPeerNew",GetAccount(0));
-        if(U_ACCOUNT.Currency)
-        {
-            $("idPeerBtn").disabled=false;
-            $("idPeerNew").disabled=false;
-        }
-        else
-        {
-            $("idPeerBtn").disabled=true;
-            $("idPeerNew").disabled=true;            
-        }
-        //update arrpool
-        FindPool(function()
-        {
-            if(ArrPoolLast.length>ArrPool.length)
-            {
-                ArrPool=ArrPoolLast;
-                var lstPool=GetPoolList();
-                FillSelect("idOutputPool",lstPool);
-                FillSelect("idInputPool",lstPool);
-                FillSelect("idPPool",lstPool);
-            }
-        });        
-        $("idSendCount").innerText=CountWait;
-    }
-}
-
-function SendMethod(cmd)
-{
-    if(!USER_ACCOUNT.length)
-    {
-        SetError("Not have user accounts");
-        return;
-    }
-    var UserAcc=+$("idAccount").value;
-    var Params={cmd:cmd};
-    switch (cmd) 
-    {
-        case "bind": //Params:{cmd, poola}
-            Params.poola=$("idPeerNew").value;
-        break;        
-        case "new": //Params:{cmd, poola}
-            Params.poola=FindPoolPos(U_ACCOUNT.Currency);
-        break;
-        case "add": //Params:{cmd, poola, output, input}
-            Params.poola=$("idPPool").value;            
-            Params.output=$("idPToken").value;
-            Params.input=$("idPCoin").value;
-            if(Params.output<1e-9)
-            {
-                SetErr("ERR: " +"small output");
-                return;
-            }            
-        break;
-        case "remove": //Params:{cmd, poola, output}
-            Params.poola=$("idPPool").value;
-            Params.output=$("idPToken").value;
-            if(Params.output<1e-9)
-            {
-                SetErr("ERR: " +"small output");
-                return;
-            }
-        break;
-        case "trade": //Params:{cmd, poola, poolb, output, payee, slide}
-            Params.poola=parseInt($("idOutputPool").value);
-            Params.poolb=parseInt($("idInputPool").value);
-            Params.output=parseFloat($("idOutput").value);
-            Params.slide=parseFloat($("idSlide").value)?parseFloat($("idSlide").value):0;
-            Params.payee=$("idInputAcc").value;
-            if((Params.poola==SState.Num&&Params.poolb==SState.Num)||Params.output<1e-9)
-            {
-                SetErr("ERR: " +"small output");
-                return;
-            }
-        break;
-        default:
-            return;
-    }
-    ToLog("Params:\n"+JSON.stringify(Params));
-    SendCall(UserAcc,"Round",Params,UserAcc);
-    UpdateSend(cmd,WAITSEND);
-    InfoWait=true;
-}
-
-const WAITSEND=10; WAITDONE=1;
-function SetInfo(Result)
-{
-    InfoWait=false;
-    $("idInfo").innerHTML=JSON.stringify(Result);
-    CountWait=WAITSEND-WAITDONE;
-    $("idSendInfo").innerHTML="Tx confirmed, "+Result.Act+" done";
-}
-
-function SetErr(Result)
-{
-    InfoWait=false;
-    $("idSendIcon").innerHTML="<svg class=\"sqr-13\"><use fill=\"brown\" xlink:href=\"#cancel\" /></svg>"
-    $("idSendInfo").innerText=Result;
-    StartWait(WAITDONE);
-}
 
 function AddNewAccount(curr)
 {
@@ -619,20 +622,48 @@ function UpdatePrice(i)
         $("idOutput").value=ArrPrice.output;   
 }
 
-function UpdatePoolIO(i)
+var ArrOutIn=[{"Acc":0, "AccId":"idOutputAcc", "Pool":0, "Curr":0, "Amount":0}, {"Acc":0, "AccId":"idInputAcc", "Pool":0, "Curr":0, "Amount":0}];
+
+function OnSelectPool(elm, outIn)
 {
-    if(PoolState)
+    ArrOutIn[outIn].Pool=elm.value;
+    ArrOutIn[outIn].Curr=GetPoolCurrency(ArrOutIn[outIn].Pool);
+    var arrAcc=GetAccount(ArrOutIn[outIn].Curr);
+    if(arrAcc.length)
     {
-        var price=FLOAT_FROM_COIN(PoolState.token)/FLOAT_FROM_COIN(PoolState.coin);
-        if(price)
+        if(ArrOutIn[outIn].Curr)
         {
-            if(i==1)
-                $("idPCoin").value=parseFloat($("idPToken").value)/price;
-            else if(i==2)
-                $("idPToken").value=parseFloat($("idPCoin").value)*price;
+            FillSelect(ArrOutIn[outIn].AccId,arrAcc);
+            $(ArrOutIn[outIn].AccId).disabled=false;
+            $("idAccount").value=arrAcc[0].value;
+        }
+        else 
+        {
+            FillSelect(ArrOutIn[outIn].AccId,[]);
+            $(ArrOutIn[outIn].AccId).disabled=true;
         }
     }
+    else //new account
+    {
+        $("idInfo").innerText="new account";
+        FillSelect(ArrOutIn[outIn].AccId,[{text:"Create new...",value:1}]);
+        $(ArrOutIn[outIn].AccId).value="";
+    }
 }
+
+function OnSelectAcc(elm, outIn)
+{
+    var poolAcc=outIn==1?$("idOutputPool").value:$("idInputPool").value;
+    var poolCurr=GetPoolCurrency(poolAcc);
+    if(elm.value==="1")
+    {
+ //       $("idInfo").innerText="new xxxx";
+        CreateNewAccount(1,poolCurr);
+    }
+    else if(poolCurr)
+        $("idAccount").value=elm.value;
+}
+
 
 function SetMax(i)
 {
@@ -1114,17 +1145,17 @@ document.body.insertAdjacentHTML("afterBegin",symbols);
 <div class="w-90 text-left">Pool: <select size="1" id="idPPool"  class="w-60 border-terablue upper" disabled><option value="0">PPool Loading</option></select></div>
 <div class="w-100 box-row ft-30">
 <div class="w-35 bg-terabluelight rounded-sm">
-<div class="w-100 box-row"><span id="idPTokenAll">x</span></div>
+<div class="w-100 box-row"><span id="idPTokenAll">0</span></div>
 <div class="w-100">+</div>
-<div class="w-100 box-row"><span id="idPCoinAll">x</span></div>
+<div class="w-100 box-row"><span id="idPCoinAll">0</span></div>
 </div>    
 <div class="w-60">
-<div class="w-100 box-row ft-30"><input type="text" class="w-90 text-center border-terablue" id="idPToken" autocomplete="off" maxLength=12 placeholder="0.00" oninput="UpdatePoolIO(1)" onchange="UpdatePoolIO(1)"><span class="upper" id="idPCurr">CURR</span></div>
+<div class="w-100 box-row ft-30"><input type="text" class="w-90 text-center border-terablue" id="idPToken" autocomplete="off" maxLength=12 placeholder="0.00" oninput="UpdatePoolIO(1)" onchange="UpdatePoolIO(1)"><span class="upper" id="idPCurr">TERA</span></div>
 <div class="w-100">+</div>
 <div class="w-100 box-row ft-30"><input type="text" class="w-90 text-center border-terablue" id="idPCoin" autocomplete="off" maxLength=12 placeholder="0.00" oninput="UpdatePoolIO(2)" onchange="UpdatePoolIO(2)">TERA</div>
 </div>
 </div>
-<div class="w-90 text-left">Your Share: <span id="idPShare">0%</span></div>
+<div class="w-90 text-left">Your Share: <span id="idPShare">0</span></div>
 </div>
 <div class="w-30 v-90 box-col jc-sa">
 <div class="w-80"><button class="w-100 btn" id="idAddBtn" onclick='SendMethod("add")'><svg class="sqr-10"><use fill="#667491" xlink:href="#income"/></svg><br>Add</button></div>
