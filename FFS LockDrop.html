@@ -1,0 +1,850 @@
+<script>
+    window.addEventListener('Init',function ()
+    {
+//        ToLog("INFO:\n"+JSON.stringify(INFO));
+        //ToLog("BASE_ACCOUNT:\n"+JSON.stringify(BASE_ACCOUNT));
+        //ToLog("SMART:\n"+JSON.stringify(SMART));
+    });
+    window.addEventListener('History',function (e)
+    {
+        var Data=e.detail;
+        ToLog("History: "+Data.OPEN_PATH);
+    });
+    window.addEventListener('Event',function(e)
+    {
+    	var Data=e.detail;
+    	var Result=Data.Description;
+        if(Data.Error)
+        		SetErr(Result);
+        	else if(Result.Acc==UState.Num)
+    		SetInfo(Result);
+
+    });
+    window.addEventListener('UpdateInfo',function ()
+    {
+        UpdateFillUser();
+    });
+    function UpdateFillUser()
+    {
+        var Arr=[];
+        var arrAcc=[];
+        for(var i=0;i<USER_ACCOUNT.length;i++)
+        {
+            var Item=USER_ACCOUNT[i];
+            var Value={value:Item.Num, text:Item.Num+"."+Item.Name+"  "+SUM_TO_STRING(Item.Value,Item.Currency,1)};
+            Arr.push(Value);
+        }
+        FillSelect("idAccount",Arr);
+    }
+    window.addEventListener('UpdateInfo', UpdateInfo);
+
+//-------------
+//Users methods
+//-------------
+function $$(name) {return document.getElementsByClassName(name);}
+function $(name) {return document.getElementById(name);}
+var UState={Num:0}, SState, U_ACCOUNT, PanelID=0;
+const WAITSEND=120; WAITDONE=3;
+
+function SelectPanel(id)
+{
+	var PanelArr=$$("tabpanel");
+	PanelID=id;
+	for (var i = 0; i < PanelArr.length; i++)
+	    PanelArr[i].style.display = (id==i) ? "flex" : "none";
+}
+
+function TogglePanel(panel,i)
+{
+    if(i)
+        $(panel).style.display = "none";
+    else
+        $(panel).style.display = $(panel).style.display=="none"?"flex":"none";
+}
+
+function TogglePanelByClass(panel,i)
+{
+    var panels=$$(panel);
+    if(i)
+        for (var i = 0; i < panels.length; i++)
+            panels[i].style.display = "none";
+    else
+        for (var i = 0; i < panels.length; i++)
+            panels[i].style.display = "none"?"flex":"none";        
+}
+
+function ToggleButtonByClass(cls,dis)
+{
+    var ArrBtn=$$(cls);
+    for (var i = 0; i < ArrBtn.length; i++)
+	    ArrBtn[i].disabled = dis;
+}
+
+var idWait=0, CountWait=0;
+function StartWait(count)
+{
+    StopWait();
+    CountWait=0;
+    for (var i = 0; i < $$("btn").length; i++)
+        $$("btn")[i].disabled = true;
+    TogglePanel("idSendTx");
+    idWait=setInterval(function ()
+    {
+        CountWait++;
+        if(CountWait>count)
+        StopWait();
+    },1000);
+}
+
+function StopWait()
+{
+    if(idWait)
+    {
+        clearInterval(idWait);
+        idWait=0;
+        CountWait=0;
+        TogglePanel("idSendTx",1);
+        for (var i = 0; i < $$("btn").length; i++)
+            $$("btn")[i].disabled = false;
+    }
+}
+
+function ToDate(time)
+{
+    if(time==(-INFO.CurBlockNum)*3)
+        return "new lock →";
+    else if(time>(-INFO.CurBlockNum)*3&&time<0)
+        return "Unlock";
+    var d = parseInt(time / 60 / 60 / 24);
+    d = d > 9 ? d  + ":": d > 0 ? '0' + d + ":": "";
+    var h = parseInt(time / 60 / 60 % 24);
+    h = h < 10 ? '0' + h : h;
+    var m = parseInt(time / 60 % 60);
+    m = m < 10 ? '0' + m : m;
+    var s = parseInt(time % 60);
+    s = s < 10 ? '0' + s : s;
+    return d + h + ':' + m + ':' + s;
+}
+
+function GetBase()
+{
+    var resttoken=BASE_ACCOUNT.Value.SumCOIN;
+    return Math.pow(2,Math.ceil(resttoken/2e7)-5)/500;
+}
+
+function UpdateInfo()
+{
+    SState=BASE_ACCOUNT.SmartState;
+    $("idLockedSplit").innerText=SState.Slot[0].Amount+"/"+SState.Slot[1].Amount+"/"+SState.Slot[2].Amount;
+    $("idLockedTotal").innerText=GetLocked(SState);
+    //UserState information
+    if(!USER_ACCOUNT.length||!GetAccount(0))
+    {
+        SelectPanel(1);
+    }
+    else
+    {
+        var UserAcc=+$("idAccount").value;
+        var base=GetBase();
+        U_ACCOUNT=USER_ACCOUNT_MAP[UserAcc];
+        UState=U_ACCOUNT.SmartState;
+        var ArrSlot=UState.Slot;
+        $("idPeerAcc").innerText=UState.peer;
+        $("idSlotBase0").innerHTML="Base: "+(base/2).toFixed(5);
+        $("idSlotBase1").innerHTML="Base: "+base.toFixed(5);
+        $("idSlotBase2").innerHTML="Base: "+(base*4).toFixed(5);
+        $("idSlotAmount0").innerHTML=ArrSlot[0].Amount+" TERA";
+        $("idSlotAmount1").innerHTML=ArrSlot[1].Amount+" TERA";
+        $("idSlotAmount2").innerHTML=ArrSlot[2].Amount+" TERA";
+        $("idSlotReward0").innerHTML=(ArrSlot[0].Amount*base/2).toFixed(4)+" FFS";
+        $("idSlotReward1").innerHTML=(ArrSlot[1].Amount*base).toFixed(4)+" FFS";
+        $("idSlotReward2").innerHTML=(ArrSlot[2].Amount*base*4).toFixed(4)+" FFS"; 
+        $("idSlotBlock0").innerHTML=ToDate((ArrSlot[0].EndBlock-INFO.CurBlockNum)*3);
+        $("idSlotBlock1").innerHTML=ToDate((ArrSlot[1].EndBlock-INFO.CurBlockNum)*3);
+        $("idSlotBlock2").innerHTML=ToDate((ArrSlot[2].EndBlock-INFO.CurBlockNum)*3);
+        $("idSlide").max=U_ACCOUNT.Value.SumCOIN-GetLocked(UState);
+        $("idClaimTotal").innerHTML=((ArrSlot[0].Amount*base/2)+(ArrSlot[1].Amount*base)+(ArrSlot[2].Amount*base*4)).toFixed(4);
+        if(!UState.ClaimBlock)
+            $("idClaim").innerHTML="Lock TERA";
+        else if(UState.ClaimBlock<INFO.CurBlockNum)
+            $("idClaim").innerHTML="Claim";
+        else
+            $("idClaim").innerHTML=ToDate((UState.ClaimBlock-INFO.CurBlockNum)*3);
+        for(var i=0; i<UState.Slot.length; i++)
+        {
+            var ArrUnlockBtn=$$("unlockbtn");
+            ArrUnlockBtn[i].disabled=(UState.Slot[i].EndBlock&&UState.Slot[i].EndBlock<INFO.CurBlockNum)?false:true;
+        }
+        var ArrPeer=GetAccount(BASE_ACCOUNT.Currency);
+        if(ArrPeer.length)
+            FillSelect("idPeer",ArrPeer);
+        else //new account
+        {
+            FillSelect("idPeer",[{text:"Create new...",value:1}]);
+            $("idPeer").value="";
+        }
+    }
+    $("idSendCount").innerText=CountWait;
+}
+
+function SendMethod(cmd)
+{
+    TogglePanelByClass("modalex",1);
+    if(!UState.peer&&cmd!="bind"&&cmd!="new")
+    {
+        $("idSetPeer").style.display="flex";
+        return;
+    }
+    var UserAcc=+$("idAccount").value;
+    var Params={cmd:cmd};
+    switch (cmd) 
+    {
+        case "bind":
+            Params.peer=$("idPeer").value;
+            if(Params.peer<15)
+            {
+                SetErr("Invalid Account");
+                return;
+            }            
+        break;        
+        case "lock":
+            if(U_ACCOUNT.Currency)
+            {
+                SetErr("TERA Account Only");
+                return;
+            }
+            if(!CheckLock(UState))
+            {
+                SetErr("Unlock firstly");
+                return;
+            }
+            Params.slot=CurSlot;
+            Params.amount=parseInt($("idSlide").value);
+            if(!Params.amount)
+            {
+                SetErr("Invalid Amount");
+                return;
+            }            
+            $("idSlide").value=0;
+            $("idLockAmount").innerText=0;
+        break;
+        case "unlock":
+            Params.slot=slot;
+        break;
+        case "claim":
+            if(!UState.ClaimBlock)
+            {
+                SelectPanel(2);
+                return;
+            }
+            if(!CheckLock(UState))
+            {
+                SelectPanel(2);
+                SetErr("Unlock firstly");
+                return;
+            }
+        break;
+        case "new":
+            CreateNewAccount(0);
+        break;        
+        default:
+    }
+    UpdateSend(cmd,WAITSEND);
+    SendCall(UserAcc,"Round",Params,UserAcc);
+}
+
+function UpdateSend(cmd,wait)
+{
+    var ArrIcon={"new":"plus","logo":"foot","bind":"bind","lock":"lock","unlock":"unlock","claim":"trade"};
+    $("idSendIcon").innerHTML="<svg class=\"sqr-13\"><use fill=\"#722F0d\" xlink:href=\"#"+ArrIcon[cmd]+"\" /></svg>";
+    $("idSendInfo").innerText="Tx submitting, please standby...";    
+    StartWait(wait);
+}
+
+function SetInfo(Result)
+{
+    CountWait=WAITSEND-WAITDONE;
+    $("idSendInfo").innerHTML="Tx confirmed, "+Result.Act+" done";
+}
+
+function SetErr(Result)
+{
+    $("idSendIcon").innerHTML="<svg class=\"sqr-13\"><use fill=\"#722F0d\" xlink:href=\"#cancel\" /></svg>"
+    $("idSendInfo").innerText=Result;
+    StartWait(WAITDONE);
+}
+
+function SetSlide(elm)
+{
+    if(!USER_ACCOUNT.length||!U_ACCOUNT.Value.SumCOIN)
+        return;
+    $("idSlide").value=Math.min($("idSlide").max,elm.value);
+    $("idLockAmount").innerText=Math.min($("idSlide").max,elm.value);    
+}
+
+var CurSlot=0;
+function SetLock(slot)
+{
+    CurSlot=slot;
+    TogglePanel("idSetLock");
+}
+
+function GetLocked(UState)
+{
+    return UState.Slot[0].Amount+UState.Slot[1].Amount+UState.Slot[2].Amount;    
+}
+
+function CheckLock(UState)
+{
+    var bLock=true;
+    for(var i=0; i<UState.Slot.length; i++)
+    {
+        if(UState.Slot[i].EndBlock&&UState.Slot[i].EndBlock<INFO.CurBlockNum)
+        {
+            bLock=false;
+            break;
+        }
+    }
+    return bLock;
+}
+
+function GetAccount(curr)
+{
+    var Arr=[];
+    for(var i=0;i<USER_ACCOUNT.length;i++)
+    {
+        var Item=USER_ACCOUNT[i];
+        if(Item.Currency==curr)
+        {
+            var Value={value:Item.Num, text:Item.Num+". "+SUM_TO_STRING(Item.Value,Item.Currency,1)};
+            Arr.push(Value);
+        }
+    }
+    return Arr;
+}
+
+function OnSelectPeer(elm)
+{
+    if(elm.value==="1")
+    {
+        AddNewAccount(BASE_ACCOUNT.Currency);
+        ToLog("peer new.");
+    }
+}
+
+function AddNewAccount(curr)
+{
+    CreateNewAccount(curr);
+    UpdateSend("new",20);
+}
+
+function Refresh()
+{
+    window.location.reload();
+}
+
+</script>
+
+<style>
+
+@media screen and (min-aspect-ratio: 9/16) {
+.wrapper {
+    width: 56.25vh;
+    height: 90vh;
+    --fwidth: 0.5625vh;
+    --fheight: 1vh;
+}
+}
+
+@media screen and (max-aspect-ratio:9/16) {
+.wrapper {
+    width: 100vw;
+    height: 90vh; 
+    --fwidth: 1vw;
+    --fheight: 1vh; 
+}
+}
+
+.wrapper {
+    position: fixed;
+    top:3vh;
+    left:0;
+    right:0;
+    margin:0 auto;
+    padding: 0;
+    z-index: 100;
+}
+
+.modal
+{
+	position: fixed;
+	left: 0;
+	right: 0;
+    margin: 0 auto;
+	z-index: 101;
+	top: calc(var(--fheight) * 25);
+	width: calc(var(--fwidth) * 80);
+	height: calc(var(--fwidth) * 30);
+	padding: calc(var(--fwidth) * 3);
+    background-color: #FFF3E0;
+    border: calc(var(--fwidth) * 0.6) solid #722F0d;
+    box-shadow: calc(var(--fwidth) * 0.5) calc(var(--fwidth) * 0.5) calc(var(--fwidth) * 3) #722F0d;
+    color: #722F0d;
+}
+
+.modalsend
+{
+    z-index: 110;
+}
+
+.modalex
+{
+    width: calc(var(--fwidth) * 80);
+    height:  calc(var(--fwidth) * 40);
+}
+
+/*Bread style*/
+body {background-color: #FFF3E0; color: #722F0d;}
+.bread-bg {background-color: #FFF3E0;}
+.bread-btn-bg {background-color: #AC562A;}
+.bread-btn-bglight {background-color: #EED9CC;}
+.bread-box-bg {background-color: #F7F8FA;}
+.bread-box-shadow {box-shadow: calc(var(--fwidth) * 1) calc(var(--fwidth) * 1) calc(var(--fwidth) * 10) #AC562A;}
+.bread-border {border: calc(var(--fwidth) * 0.4) solid #EED9CC;}
+.bread-border-strong {border: calc(var(--fwidth) * 0.4) solid #722F0d;}
+.bread-text-strong {color: #722F0d;}
+
+/*TERA blue style*/
+.text-terabluelight {color: #8295B4;}
+.text-terablue {color: #667491;}
+.bg-terabluelight {background-color: #8295B4;}
+.bg-terablue {background-color: #667491;}
+.border-terabluelight {border: calc(var(--fwidth) * 0.3) solid #8295B4;}
+.border-terablue {border: calc(var(--fwidth) * 0.3) solid #667491;}
+.bg-lock {background-color: #CE6F3F;}
+.bg-bluex {background-color: #1A6094;}
+.bg-darkblue {background-color: #2E4B51;}
+
+.v-2 {height: 2%;}
+.v-8 {height: 8%;}
+.v-12 {height: 12%;}
+.v-67 {height: 67%;}
+.v-78 {height: 78%;}
+
+/*STANDARD*/
+.box-row {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    justify-content: space-around;
+    align-items: center;
+    align-content:center;
+}
+.box-col {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    align-items: center;
+    align-content:center;    
+}
+.jc-center {justify-content: center;}
+.jc-sb {justify-content: space-between;}
+.jc-sa {justify-content: space-around;}
+.jc-fs {justify-content: flex-start;}
+.jc-fe {justify-content: flex-end;}
+
+.w-5 {width: 5%;}
+.w-10 {width: 10%;}
+.w-15 {width: 15%;}
+.w-20 {width: 20%;}
+.w-25 {width: 25%;}
+.w-30 {width: 30%;}
+.w-35 {width: 35%;}
+.w-40 {width: 40%;}
+.w-45 {width: 45%;}
+.w-50 {width: 50%;}
+.w-55 {width: 55%;}
+.w-60 {width: 60%;}
+.w-65 {width: 65%;}
+.w-70 {width: 70%;}
+.w-75 {width: 75%;}
+.w-80 {width: 80%;}
+.w-85 {width: 85%;}
+.w-90 {width: 90%;}
+.w-95 {width: 95%;}
+.w-100 {width: 100%;}
+
+.v-5 {height: 5%;}
+.v-10 {height: 10%;}
+.v-15 {height: 15%;}
+.v-20 {height: 20%;}
+.v-25 {height: 25%;}
+.v-30 {height: 30%;}
+.v-35 {height: 35%;}
+.v-40 {height: 40%;}
+.v-45 {height: 45%;}
+.v-50 {height: 50%;}
+.v-55 {height: 55%;}
+.v-60 {height: 60%;}
+.v-65 {height: 65%;}
+.v-70 {height: 70%;}
+.v-75 {height: 75%;}
+.v-80 {height: 80%;}
+.v-85 {height: 85%;}
+.v-90 {height: 90%;}
+.v-95 {height: 95%;}
+.v-100 {height: 100%;}
+
+.cw-10 {width: calc(var(--fwidth) * 10);}
+.cw-13 {width: calc(var(--fwidth) * 13);}
+.cw-15 {width: calc(var(--fwidth) * 15);}
+.cw-20 {width: calc(var(--fwidth) * 20);}
+.cw-23 {width: calc(var(--fwidth) * 23);}
+.cw-25 {width: calc(var(--fwidth) * 25);}
+.cw-26 {width: calc(var(--fwidth) * 26);}
+.cw-30 {width: calc(var(--fwidth) * 30);}
+.cw-35 {width: calc(var(--fwidth) * 35);}
+.cw-40 {width: calc(var(--fwidth) * 40);}
+.cw-45 {width: calc(var(--fwidth) * 45);}
+.cw-50 {width: calc(var(--fwidth) * 50);}
+
+.cv-10 {height: calc(var(--fwidth) * 10);}
+.cv-13 {height: calc(var(--fwidth) * 13);}
+.cv-15 {height: calc(var(--fwidth) * 15);}
+.cv-20 {height: calc(var(--fwidth) * 20);}
+.cv-25 {height: calc(var(--fwidth) * 25);}
+
+.sqr-5
+{
+height: calc(var(--fwidth) * 5);
+width: calc(var(--fwidth) * 5);
+}
+.sqr-6
+{
+height: calc(var(--fwidth) * 6);
+width: calc(var(--fwidth) * 6);
+}
+.sqr-7
+{
+height: calc(var(--fwidth) * 7);
+width: calc(var(--fwidth) * 7);
+}
+.sqr-8
+{
+height: calc(var(--fwidth) * 8);
+width: calc(var(--fwidth) * 8);
+}
+.sqr-10
+{
+height: calc(var(--fwidth) * 10);
+width: calc(var(--fwidth) * 10);
+}
+.sqr-13
+{
+height: calc(var(--fwidth) * 13);
+width: calc(var(--fwidth) * 13);
+}
+.sqr-15
+{
+height: calc(var(--fwidth) * 15);
+width: calc(var(--fwidth) * 15);
+}
+.sqr-18
+{
+height: calc(var(--fwidth) * 18);
+width: calc(var(--fwidth) * 18);
+}
+.sqr-20
+{
+height: calc(var(--fwidth) * 20);
+width: calc(var(--fwidth) * 20);
+}
+.sqr-22
+{
+height: calc(var(--fwidth) * 22);
+width: calc(var(--fwidth) * 22);
+}
+.sqr-25
+{
+height: calc(var(--fwidth) * 25);
+width: calc(var(--fwidth) * 25);
+}
+
+.upper {text-transform:uppercase}
+.lower {text-transform:lowercase}
+.text-left {text-align: left;}
+.text-center {text-align: center;}
+.text-right {text-align: right;}
+
+.text-white {color: white;}
+.text-black {color: black;}
+.text-red {color: red;}
+.text-orange {color: orange;}
+.text-yellow {color: yellow;}
+.text-green {color: green;}
+.text-blue {color: blue;}
+.text-purple {color: purple;}
+.text-brown {color: brown;}
+.text-gold {color: gold;}
+
+.ft-20 {font-size:calc(var(--fwidth) * 2.0);}
+.ft-30 {font-size:calc(var(--fwidth) * 3.0);}
+.ft-35 {font-size:calc(var(--fwidth) * 3.5);}
+.ft-40 {font-size:calc(var(--fwidth) * 4.0);}
+.ft-45 {font-size:calc(var(--fwidth) * 4.5);}
+.ft-50 {font-size:calc(var(--fwidth) * 5.0);}
+.ft-60 {font-size:calc(var(--fwidth) * 6.0);}
+.ft-70 {font-size:calc(var(--fwidth) * 7.0);}
+.ft-80 {font-size:calc(var(--fwidth) * 8.0);}
+.ft-90 {font-size:calc(var(--fwidth) * 9.0);}
+.ft-100 {font-size:calc(var(--fwidth) * 10.0);}
+.ft-110 {font-size:calc(var(--fwidth) * 11.0);}
+.ft-120 {font-size:calc(var(--fwidth) * 12.0);}
+.ft-130 {font-size:calc(var(--fwidth) * 13.0);}
+
+.ft-bold {font-weight:bold;}
+.ft-bolder {font-weight:bolder;}
+.ft-lighter {font-weight:lighter;}
+
+.bg-transparent {background-color: transparent;}
+.bg-white {background-color: white;}
+.bg-black {background-color: black;}
+.bg-black {background-color: black;}
+.bg-red {background-color: red;}
+.bg-orange {background-color: orange;}
+.bg-yellow {background-color: yellow;}
+.bg-green {background-color: green;}
+.bg-blue {background-color: blue;}
+.bg-purple {background-color: purple;}
+.bg-brown {background-color: brown;}
+.bg-gold {background-color: gold;}
+
+.rounded-sm {border-radius: calc(var(--fwidth) * 1.5);}
+.rounded-md {border-radius: calc(var(--fwidth) * 3);}
+
+.border-none {border: none;}
+.border-white {border: calc(var(--fwidth) * 0.3) solid white;}
+.border-black {border: calc(var(--fwidth) * 0.3) solid black;}
+.border-red {border: calc(var(--fwidth) * 0.3) solid red;}
+.border-orange {border: calc(var(--fwidth) * 0.3) solid orange;}
+.border-yellow {border: calc(var(--fwidth) * 0.3) solid yellow;}
+.border-green {border: calc(var(--fwidth) * 0.3) solid green;}
+.border-blue {border: calc(var(--fwidth) * 0.3) solid blue;}
+.border-purple {border: calc(var(--fwidth) * 0.3) solid purple;}
+.border-brown {border: calc(var(--fwidth) * 0.3) solid brown;}
+.border-gold {border: calc(var(--fwidth) * 0.3) solid gold;}
+
+.btn:disabled
+{
+    opacity: 70%;
+    cursor: default;
+}
+
+.btn 
+{
+    border-radius: calc(var(--fwidth) * 1.5);
+    border:none;
+    cursor: pointer;
+}
+
+.btn:focus
+{
+    outline: none;
+}
+
+.tabpanel
+{
+    width: 100%;
+    height: 100%;
+}
+</style>
+
+<div class="wrapper box-col jc-fs ft-45">
+
+<script>
+var symbols = '<svg style="width:0; height:0; visibility:hidden;position:absolute;z-index:-1">'
+symbols+='<symbol id="bind" viewBox="0 0 45.902 45.902"> <g> <path d="M43.162,26.681c-1.564-1.578-3.631-2.539-5.825-2.742c1.894-1.704,3.089-4.164,3.089-6.912 c0-5.141-4.166-9.307-9.308-9.307c-4.911,0-8.932,3.804-9.281,8.625c4.369,1.89,7.435,6.244,7.435,11.299 c0,1.846-0.42,3.65-1.201,5.287c1.125,0.588,2.162,1.348,3.066,2.26c2.318,2.334,3.635,5.561,3.61,8.851l-0.002,0.067 l-0.002,0.057l-0.082,1.557h11.149l0.092-12.33C45.921,30.878,44.936,28.466,43.162,26.681z"/> <path d="M23.184,34.558c1.893-1.703,3.092-4.164,3.092-6.912c0-5.142-4.168-9.309-9.309-9.309c-5.142,0-9.309,4.167-9.309,9.309 c0,2.743,1.194,5.202,3.084,6.906c-4.84,0.375-8.663,4.383-8.698,9.318l-0.092,1.853h14.153h15.553l0.092-1.714 c0.018-2.514-0.968-4.926-2.741-6.711C27.443,35.719,25.377,34.761,23.184,34.558z"/> <path d="M6.004,11.374v3.458c0,1.432,1.164,2.595,2.597,2.595c1.435,0,2.597-1.163,2.597-2.595v-3.458h3.454 c1.433,0,2.596-1.164,2.596-2.597c0-1.432-1.163-2.596-2.596-2.596h-3.454V2.774c0-1.433-1.162-2.595-2.597-2.595 c-1.433,0-2.597,1.162-2.597,2.595V6.18H2.596C1.161,6.18,0,7.344,0,8.776c0,1.433,1.161,2.597,2.596,2.597H6.004z"/> </g> </symbol>'
+symbols+='<symbol id="cancel" viewBox="0 0 512 512"><path d="M256 16C123.45 16 16 123.45 16 256s107.45 240 240 240 240-107.45 240-240S388.55 16 256 16zm0 60c99.41 0 180 80.59 180 180s-80.59 180-180 180S76 355.41 76 256 156.59 76 256 76zm-80.625 60c-.97-.005-2.006.112-3.063.313v-.032c-18.297 3.436-45.264 34.743-33.375 46.626l73.157 73.125-73.156 73.126c-14.63 14.625 29.275 58.534 43.906 43.906L256 299.906l73.156 73.156c14.63 14.628 58.537-29.28 43.906-43.906l-73.156-73.125 73.156-73.124c14.63-14.625-29.275-58.5-43.906-43.875L256 212.157l-73.156-73.125c-2.06-2.046-4.56-3.015-7.47-3.03z"/></symbol>'
+symbols+='<symbol id="plus" viewBox="0 0 512 512"><path d="M196 16a30 30 0 0 0-30 30v120H46a30 30 0 0 0-30 30v120a30 30 0 0 0 30 30h120v120a30 30 0 0 0 30 30h120a30 30 0 0 0 30-30V346h120a30 30 0 0 0 30-30V196a30 30 0 0 0-30-30H346V46a30 30 0 0 0-30-30H196z"/></symbol>'
+symbols+='<symbol id="trade" viewBox="0 0 512 512"><path d="M287.03 20c-39.133.48-79.73 15.297-117 45.938h80.47v43.188c52.76-29.75 114.592-31.588 163.938.03l-18.188 9.72 64.688 50.72-3.75-83.314-26.407 14.126C395.99 48.792 345.038 20.644 290.907 20c-1.288-.015-2.583-.016-3.875 0zm-268 64.625v212.75h212.782V84.625H19.032zm50.282 26.03H205.78v138.939h-18.718v-120.25H69.313v-18.688zm3.344 38.126l90.094 91.845-13.344 13.094-90.094-91.845 13.344-13.094zm206.656 61.75v212.782h212.75v-212.78h-212.75zm50.25 26.064h136.469V375.5h-18.686V255.28h-117.78l-.002-18.686zm3.344 38.094l90.125 91.875-13.342 13.062-90.125-91.844 13.343-13.092zm-278.53 63.656l3.75 83.312 23.312-12.47c60.927 88.637 169.99 106.485 259.625 32.814h-80.439v-43.188c-52.08 29.38-113 31.544-162.03 1.188l20.436-10.938-64.655-50.718z"/></symbol>'
+symbols+='<symbol id="foot" viewBox="0 0 512 512"><path d="M324.3 34.79c-25.7 0-46.5 27.02-46.5 60.36 0 20.05 7.7 38.85 20.6 50.05 5.6 81.2-4.7 152.3-53.6 160.1-60.2 6.2-73.2-68.2-84.6-139 8.9-15.7 9.2-37.5.6-57.3-13.4-30.79-43.6-47.33-67.56-36.92-23.92 10.4-32.47 43.72-19.11 74.52 9.44 21.7 27.77 37.1 47.07 39.6 33.9 57.6 71.8 152.4 51 180.2-11.5 15.2-32.7 10.4-55.6-4 3.7-16.3-4.5-34.6-20.81-46.7-22.74-16.9-53.8-16.5-69.39.8-15.6 17.3-9.77 45 13 61.9 17.78 13.1 41.33 16.1 58.44 7.4 67.86 32.9 121.86 99.5 175.56 90.6 76.2-12.6 76.5-119.3 148.3-149.9 13.7 9.1 33.5 8.3 49.7-2.1 21.2-13.7 29.1-39.2 17.7-56.9-11.4-17.8-37.9-21.1-59.2-7.4-15.9 10.3-24.9 27.8-22.5 43.9-29.9 22.4-68.5 39.7-88.7 27.3-16.2-9.9 1.8-122.3 19-178.4 19.6-7.7 33.1-31.1 33.1-57.75 0-33.34-20.8-60.37-46.5-60.36z"/></symbol>'
+symbols+='<symbol id="setting" viewBox="0 0 512 512"><path d="M234.875 18.78c-26.087 2.367-51.557 8.56-74.875 18.782 15.37 32.763 14.222 66.706-6.72 82.407-20.835 15.617-54.055 7.965-81.124-15.69-16.246 19.452-29.336 41.36-38.875 65.626 33.83 12.333 56.635 37.665 52.94 63.5-3.698 25.835-32.697 43.74-68.626 46.094 2.338 25.796 8.91 50.778 18.937 73.875 17.81-8.182 35.793-11.09 51.095-8.938 13.032 1.87 23.927 7.015 31.156 16.657 15.817 21.097 7.603 54.713-16.78 81.97 19.516 16.35 42.216 29.444 66.594 39.03 12.33-33.828 37.655-56.634 63.5-52.938 25.844 3.697 43.74 32.696 46.094 68.625 26.087-2.365 51.557-8.555 74.875-18.78-15.766-32.997-14.26-67.588 6.843-83.406 9.64-7.23 22.568-9.022 35.594-7.125 15.112 2.16 31.19 10.25 45.563 22.78 16.088-19.345 29.4-41.51 38.875-65.594-33.83-12.332-56.635-37.653-52.938-63.5 3.697-25.846 32.665-43.772 68.594-46.125-2.36-25.944-8.774-50.663-18.906-73.874-32.612 15.117-66.66 13.145-82.282-7.687-15.696-20.944-7.252-53.86 16.688-81-19.52-16.352-42.248-29.447-66.625-39.032-12.332 33.828-37.657 56.66-63.5 52.968-25.846-3.693-43.744-32.696-46.095-68.625zm21.656 95.126c79.626 0 144.376 64.752 144.376 144.375 0 79.626-64.75 144.376-144.375 144.376-79.624 0-144.374-64.75-144.374-144.375 0-79.624 64.75-144.374 144.375-144.374zm0 18.688c-69.524 0-125.686 56.162-125.686 125.687 0 69.526 56.162 125.69 125.687 125.69 69.526 0 125.69-56.164 125.69-125.69 0-69.522-56.164-125.686-125.69-125.686zm.033 15.125c61.094 0 110.625 49.53 110.625 110.624 0 61.095-49.53 110.625-110.625 110.625s-110.625-49.53-110.625-110.626c0-61.095 49.53-110.625 110.625-110.625z"/></symbol>'
+symbols+='<symbol id="lock" viewBox="0 0 512 512"><path d="M254.28 17.313c-81.048 0-146.624 65.484-146.624 146.406V236h49.594v-69.094c0-53.658 43.47-97.187 97.03-97.187 53.563 0 97.032 44.744 97.032 97.186V236h49.594v-72.28c0-78.856-65.717-146.407-146.625-146.407zM85.157 254.688c-14.61 22.827-22.844 49.148-22.844 76.78 0 88.358 84.97 161.5 191.97 161.5 106.998 0 191.968-73.142 191.968-161.5 0-27.635-8.26-53.95-22.875-76.78H85.155zM254 278.625c22.34 0 40.875 17.94 40.875 40.28 0 16.756-10.6 31.23-25.125 37.376l32.72 98.126h-96.376l32.125-98.125c-14.526-6.145-24.532-20.62-24.532-37.374 0-22.338 17.972-40.28 40.312-40.28z"/></symbol>'
+symbols+='<symbol id="unlock" viewBox="0 0 512 512"><path d="M402.6 164.6c0-78.92-65.7-146.47-146.6-146.47-81.1 0-146.6 65.49-146.6 146.47v72.3H159v-69.1c0-53.7 43.4-97.26 97-97.26 53.5 0 97 41.66 97 94.06zm-315.7 91C72.2 278.4 64 304.7 64 332.4c0 88.3 85 161.5 192 161.5s192-73.2 192-161.5c0-27.7-8.3-54-22.9-76.8zm168.8 23.9c22.3 0 40.9 18 40.9 40.3 0 16.8-10.6 31.2-25.1 37.3l32.7 98.2h-96.4l32.1-98.2c-14.5-6.1-24.5-20.6-24.5-37.3 0-22.3 18-40.3 40.3-40.3z"/></symbol>'
+//symbols+='<symbol id="" viewBox="0 0 512 512"><path d=""/></symbol>'
+//symbols+='<symbol id="" viewBox="0 0 512 512"><path d=""/></symbol>'
+symbols+='</svg>';
+document.body.insertAdjacentHTML("afterBegin",symbols);
+</script>
+
+<!--TX-->
+<div class="modal modalsend box-col jc-sa text-center rounded-md ft-40" id="idSendTx" style="display:none;"> 
+<div><span id="idSendIcon"></span></div>
+<div><span id="idSendInfo">Tx submitting, please standby...</span></div>
+<div>--<span id="idSendCount">5</span>--</div>
+</div>
+
+<!--PEER-->
+<div class="modal modalex box-col jc-sa rounded-md text-center" id="idSetPeer" style="display:none;"> 
+<div class="w-100 v-30 box-row ft-60 ft-bold bread-btn-bglight rounded-sm">Set Reward Account</div>
+<div class="w-90 v-40 box-col jc-center">
+<select size="1" id="idPeer" class="w-80 rounded-sm ft-50 bread-text-strong bread-border" oninput="OnSelectPeer(this,1)"><option value="0">Select Account</option></select>
+</div>
+<div class="w-60 v-20 box-row">
+<button class="w-45 v-100 ft-35 ft-bold btn text-white bread-btn-bg" id="idPeerBtn" onclick='SendMethod("bind")'>Set</button>
+<button class="w-45 v-100 ft-35 ft-bold btn text-white bread-btn-bg" onclick='TogglePanelByClass("modalex",1)'>Cancel</button>
+</div>
+</div>
+
+<!--LOCK-->
+<div class="modal modalex box-col jc-sa rounded-md text-center" id="idSetLock" style="display:none;"> 
+<div class="w-100 v-30 box-row ft-60 ft-bold bread-btn-bglight rounded-sm">New Lock</div>
+<div class="w-90 v-40 box-row jc-center">
+<div class="w-50"><input class="w-100" type="range" id="idSlide" min="0" max="1000" step="1" value="0" onchange="SetSlide(this)" oninput="SetSlide(this)"/></div>
+<div class="w-40 ft-30"><span id="idLockAmount">0</span> TERA</div>
+</div>
+<div class="w-60 v-20 box-row">
+<button class="w-45 v-100 ft-35 ft-bold btn text-white bread-btn-bg" onclick='SendMethod("lock")'>Lock</button>
+<button class="w-45 v-100 ft-35 ft-bold btn text-white bread-btn-bg" onclick='TogglePanelByClass("modalex",1)'>Cancel</button>
+</div>
+</div>
+
+<!--SETTING-->
+<div class="w-80 v-8 box-row jc-sb">
+<select size="1" id="idAccount" class="w-65 rounded-sm ft-40 bread-text-strong bread-border"><option value="0">Loading</option></select>
+<span id="idPeerAcc">0</span>
+<button class="btn bread-btn-bglight" id="idPeerBtn" onclick='TogglePanel("idSetPeer")'>
+<svg class="sqr-7"><use fill="#722F0d" xlink:href="#setting"/></svg>
+</button>
+</div>
+<!--TITLE-->
+<div class="w-85 v-15 box-col jc-center text-center">
+<div class="w-80"><svg class="sqr-15"><use fill="#AC562A" xlink:href="#foot"/></svg></div>
+<div class="w-80 ft-80 ft-bolder">FFS LockDrop</div>
+</div>
+
+<!--PANEL-->
+<div class="w-100 v-65 box-row panel">
+<!--MAIN TAB-->
+<div class="tabpanel box-col jc-sa bread-text-strong" id="idAccountPanel" style="display:flex;">
+<div class="v-5"></div>
+<!--STATICS-->
+<div class="w-80 v-35 box-col jc-sa rounded-md bread-border bread-box-bg">
+<div class="w-95 v-15">Total Locked TERA</div>
+<div class="w-95 v-50 box-row ft-110 ft-bolder text-center"><span id="idLockedTotal">Loading</span></div>
+<div class="w-85 v-20 box-row jc-fe ft-35" id="idLockedSplit">0/1/2</div>
+</div>
+
+<!--CLAIM-->
+<div class="w-80 v-35 box-col jc-sa rounded-md bread-border bread-box-bg">
+<div class="w-95 v-15">FFS to Claim</div>
+<div class="w-100 v-50 box-row text-center">
+<div class="w-30"><svg class="sqr-13"><use fill="#AC562A" xlink:href="#foot"/></svg></div>
+<div class="w-70 ft-100 ft-bolder text-left" id="idClaimTotal">Loading</div>
+</div>
+<div class="w-95 v-20 box-row">
+<div class="w-35 ft-35 text-left">Time to claim</div>
+<div class="w-60 text-right"><button class="w-80 v-100 ft-45 ft-bolder btn bread-text-strong bread-btn-bglight" onclick='SendMethod("claim")'><span id="idClaim">Claim</span></button></div>
+</div>
+</div>
+
+<!--LOCK-->
+<div class="w-80 v-8 text-center">
+<button class="w-50 v-100 ft-40 ft-bolder btn text-white bread-btn-bg" onclick="SelectPanel(2)">Lock TERA</button></div>
+
+</div> 
+
+<!--NEW ACCOUNT-->
+<div class="tabpanel box-col jc-fs" id="idAccountPanel" style="display:none;">
+<div class="v-10"></div>
+<div class="w-80 v-50 box-col jc-center rounded-md text-center bread-box-bg bread-border">
+<div class="w-100 v-30 box-row ft-60 ft-bold">Create TERA Account</div>
+<div class="w-100 v-60 box-col text-center">
+<button class="w-40 btn ft-45 bread-btn-bg text-white" onclick="AddNewAccount(0)"><svg class="sqr-13"><use fill="white" xlink:href="#plus"/></svg><br>NEW</button>
+</div>
+</div>
+<div class="w-80 v-10 box-row">
+<button class="w-40 btn ft-45 bread-btn-bg text-white" onclick="Refresh()">Refresh</button>
+</div>
+</div> 
+
+<!--LOCK TAB-->
+<div class="tabpanel box-col jc-sa bread-text-strong border-bluex" id="idAccountPanel" style="display:none;">
+<!--7d-->
+<div class="w-80 v-25 box-col jc-sb rounded-md text-center bread-border bread-box-bg">
+<div class="w-100 box-row jc-sa ft-50 bread-btn-bglight rounded-sm">
+<div class="w-60 text-left">Lock 1 week</div>
+<div class="w-30 ft-30" id="idSlotBase0">1</div>
+</div>
+<div class="w-100 box-row">
+<div class="w-60 ft-50" id="idSlotAmount0">1</div>
+</div>
+<div class="w-100 box-row">
+<div class="w-60 ft-40" id="idSlotReward0">1</div>
+</div>
+<div class="w-100 box-row jc-center">
+<div class="w-75">
+<button class="w-80 v-100 ft-45 btn unlockbtn bread-text-strong bread-btn-bglight" onclick='SendMethod("unlock",0)'><span id="idSlotBlock0">Unlock</span></button>
+</div>
+<div class="w-15">
+<button class="w-100 v-100 ft-45 ft-bolder btn text-white bread-btn-bg" onclick="SetLock(0)">+</button>
+</div>
+</div>
+</div>
+<!--30d-->
+<div class="w-80 v-25 box-col jc-sb rounded-md text-center bread-border bread-box-bg">
+<div class="w-100 box-row jc-sa ft-50 bread-btn-bglight rounded-sm">
+<div class="w-60 text-left">Lock 1 month</div>
+<div class="w-30 ft-30" id="idSlotBase1">1</div>
+</div>
+<div class="w-100 box-row">
+<div class="w-60 ft-50" id="idSlotAmount1">1</div>
+</div>
+<div class="w-100 box-row">
+<div class="w-60 ft-40" id="idSlotReward1">1</div>
+</div>
+<div class="w-100 box-row jc-center">
+<div class="w-75">
+<button class="w-80 v-100 ft-45 btn unlockbtn bread-text-strong bread-btn-bglight" onclick='SendMethod("unlock",1)'><span id="idSlotBlock1">Unlock</span></button>
+</div>
+<div class="w-15">
+<button class="w-100 v-100 ft-45 ft-bolder btn text-white bread-btn-bg" onclick="SetLock(1)">+</button>
+</div>
+</div>
+</div>
+<!--365d-->
+<div class="w-80 v-25 box-col jc-sb rounded-md text-center bread-border bread-box-bg">
+<div class="w-100 box-row jc-sa ft-50 bread-btn-bglight rounded-sm">
+<div class="w-60 text-left">Lock 1 year</div>
+<div class="w-30 ft-30" id="idSlotBase2">1</div>
+</div>
+<div class="w-100 box-row">
+<div class="w-60 ft-50" id="idSlotAmount2">1</div>
+</div>
+<div class="w-100 box-row">
+<div class="w-60 ft-40" id="idSlotReward2">1</div>
+</div>
+<div class="w-100 box-row jc-center">
+<div class="w-75">
+<button class="w-80 v-100 v-100 ft-45 btn unlockbtn bread-text-strong bread-btn-bglight" onclick='SendMethod("unlock",2)'><span id="idSlotBlock2">Unlock</span></button>
+</div>
+<div class="w-15">
+<button class="w-100 v-100 ft-45 ft-bolder btn text-white bread-btn-bg" onclick="SetLock(2)">+</button>
+</div>
+</div>
+</div>
+
+<div class="w-80 v-8 box-col"><button class="w-50 v-100 ft-40 ft-bolder btn text-white bread-btn-bg" onclick="SelectPanel(0)">Back</button></div>
+
+</div> 
+
+<!--PANEL END-->
+</div>
+
+<!--FOOTER-->
+<div class="v-5"></div>
+<div class="w-80 box-col ft-30 rounded-sm">
+Powered by TERA Jinn-core
+</div>
+</div>
