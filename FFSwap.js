@@ -279,7 +279,7 @@ function GetPools(ArrPoolAcc)
     for(var i=0; i<ArrPoolAcc.length; i++)
     {
         Item=ReadState(ArrPoolAcc[i]);
-        if(Item.pprev)
+        if(Item.pprev||Item.Num==context.Smart.Account)
         {
             Item.Currency=ReadAccount(ArrPoolAcc[i]).Currency;
             Pools.push(Item);
