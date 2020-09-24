@@ -80,7 +80,9 @@ function UpdateInfo()
         if(PanelID==3)
             SelectPanel(0);
         if(!UState.peer&&U_ACCOUNT.Currency&&!UState.pprev)
-            SelectPanel(2);
+            AlertPeer(UState.Num);
+        else
+            $("idBindAlert").innerText="";
         //update swap panel
         if(UState.peer)
         {
@@ -125,24 +127,26 @@ function UpdateInfo()
         }
         //update arrpool
         var ArrPoolAcc=[];
-        var ArrPoolAccCan=[parseInt($("idOutputPool").value),parseInt($("idInputPool").value),parseInt($("idPPool").value)];
+        var ArrPoolAccCan=[parseUint($("idOutputPool").value),parseUint($("idInputPool").value),parseUint($("idPPool").value)];
         ArrPoolAccCan=UniqArr(ArrPoolAccCan);
-        for(var i=0; i<ArrPoolAccCan.length; i++)
+        for(var i=0;i<ArrPoolAccCan.length;i++)
         {
-            if(ArrPoolAccCan[i]&&ArrPoolAccCan[i]!=SState.Num)
+            if(ArrPoolAccCan[i])
                 ArrPoolAcc.push(ArrPoolAccCan[i]);
         }
         if(ArrPoolAcc.length)
             UpdatePoolState(ArrPoolAcc); //update poolstates
         //update poolstate
-        PoolState=GetPoolState(U_ACCOUNT.Currency);
-        //ToLog(PoolState);
-        if(PoolState)
+        if(parseUint($("idPPool").value))
         {
-            $("idPTokenAll").innerText=FLOAT_FROM_COIN(PoolState.token).toFixed(2);
-            $("idPCoinAll").innerText=FLOAT_FROM_COIN(PoolState.coin).toFixed(2);
-            $("idPShare").innerText=PoolState.share?UState.share/PoolState.share:0;
-            $("idPCurr").innerText=MapCurrency[U_ACCOUNT.Currency];
+            var PoolState=GetPoolState($("idPPool").value);
+            if(PoolState)
+            {
+                $("idPTokenAll").innerText=FLOAT_FROM_COIN(PoolState.token).toFixed(2);
+                $("idPCoinAll").innerText=FLOAT_FROM_COIN(PoolState.coin).toFixed(2);
+                $("idPShare").innerText=PoolState.share?UState.share/PoolState.share:0;
+                $("idPCurr").innerText=MapCurrency[U_ACCOUNT.Currency];
+            }
         }
         if(U_ACCOUNT.Currency&&!InfoWait)
         {
@@ -171,9 +175,9 @@ function SendMethod(cmd)
             Params.poola=FindPoolPos(U_ACCOUNT.Currency);
         break;
         case "add": //Params:{cmd, poola, output, input}
-            Params.poola=$("idPPool").value;            
-            Params.output=$("idPToken").value;
-            Params.input=$("idPCoin").value;
+            Params.poola=parseUint($("idPPool").value);
+            Params.output=parseFloat($("idPToken").value);
+            Params.input=parseFloat($("idPCoin").value);
             if(Params.output<1e-9)
             {
                 SetErr("ERR: " +"small output");
@@ -181,7 +185,7 @@ function SendMethod(cmd)
             }            
         break;
         case "remove": //Params:{cmd, poola, output}
-            Params.poola=$("idPPool").value;
+            Params.poola=parseUint($("idPPool").value);
             Params.output=$("idPToken").value;
             if(Params.output<1e-9)
             {
@@ -190,14 +194,14 @@ function SendMethod(cmd)
             }
         break;
         case "trade": //Params:{cmd, poola, poolb, output, payee, slide}
-            Params.poola=parseInt($("idOutputPool").value);
-            Params.poolb=parseInt($("idInputPool").value);
+            Params.poola=parseUint($("idOutputPool").value);
+            Params.poolb=parseUint($("idInputPool").value);
             Params.output=parseFloat($("idOutput").value);
             Params.slide=parseFloat($("idSlide").value)?parseFloat($("idSlide").value):0;
-            Params.payee=$("idInputAcc").value;
+            Params.payee=parseUint($("idInputAcc").value);
             if((Params.poola==SState.Num&&Params.poolb==SState.Num)||Params.output<1e-9)
             {
-                SetErr("ERR: " +"small output");
+                SetErr("ERR: " +"invalid order information");
                 return;
             }
         break;
@@ -216,6 +220,18 @@ function UpdateSend(cmd,wait)
     $("idSendInfo").innerText="Tx submitting, please standby...";    
     StartWait(wait);
     InfoWait=true;
+}
+
+function AlertPeer(Acc)
+{
+    $("idBindAlert").innerHTML="* Bind TERA Account for [<b>"+Acc+"</b>] *";
+    if(PanelID!=2)
+    {
+        SelectPanel(2);
+        $("idSendIcon").innerHTML="<svg class=\"sqr-10\"><use fill=\"red\" xlink:href=\"#bind\" /></svg>";
+        $("idSendInfo").innerHTML="Bind TERA Account for ["+Acc+"]<br>OR select other account";
+        StartWait(10);
+    }
 }
 
 var idWait=0, CountWait=0, InfoWait=false;
@@ -277,21 +293,24 @@ function UpdatePoolState(ArrPoolAcc)
         if(Err)
             SetStatus("Err="+Err+"  RetValue="+JSON.stringify(RetValue));
         else
+        {
             ArrPoolState=RetValue;
-        //ToLog(ArrPoolState);
+            //UpdatePrice(0);
+        }
     })
 }
 
 function UpdatePoolIO(i)
 {
+    var PoolState=GetPoolState($("idPPool").value);
     if(PoolState)
     {
         var price=FLOAT_FROM_COIN(PoolState.token)/FLOAT_FROM_COIN(PoolState.coin);
         if(price)
         {
-            if(i==1)
+            if(i==0)
                 $("idPCoin").value=parseFloat($("idPToken").value)/price;
-            else if(i==2)
+            else if(i==1)
                 $("idPToken").value=parseFloat($("idPCoin").value)*price;
         }
     }
@@ -313,7 +332,7 @@ function GetPoolList()
     var Arr=[];
     for(var i=0; i<ArrPoolList.length; i++)
     {
-        var Value={value: ArrPoolList[i].Num, text:ArrPoolList[i].Num+". "+MapCurrency[ArrPoolList[i].Currency]};
+        var Value={value: ArrPoolList[i].Num, text:MapCurrency[ArrPoolList[i].Currency]};
         Arr.push(Value);
     }
     return Arr;
@@ -339,11 +358,11 @@ function GetPoolByCurrency(curr)
     return 0;    
 }
 
-function GetPoolState(curr)
+function GetPoolState(poolAcc)
 {
     for(var i=0; i<ArrPoolState.length; i++)
     {
-        if(parseInt(curr)==ArrPoolState[i].Currency)
+        if(poolAcc==ArrPoolState[i].Num)
             return ArrPoolState[i];
     }
     return 0;
@@ -367,13 +386,13 @@ for(var i=0;i<ArrPoolList.length;i++)
 return Num;
 }
 
-function GetAccount(curr)
+function GetAccount(curr,exacc)
 {
     var Arr=[];
     for(var i=0;i<USER_ACCOUNT.length;i++)
     {
         var Item=USER_ACCOUNT[i];
-        if(Item.Currency==curr)
+        if(Item.Currency==curr&&Item.Num!=exacc)
         {
             var Value={value:Item.Num, text:Item.Num+". "+SUM_TO_STRING(Item.Value,Item.Currency,1)};
             Arr.push(Value);
@@ -483,12 +502,18 @@ function TogglePanelByClass(panel,i)
             panels[i].style.display = "none"?"flex":"none";        
 }
 
-var PoolState;
+function Refresh()
+{
+    window.location.reload();
+}
+
+function AddTokenAccount()
+{
+    AddNewAccount($("idCurrency").value);
+}
 
 function AddNewAccount(curr)
 {
-    if(curr)
-        curr=$("idCurrency").value
     CreateNewAccount(curr);
     UpdateSend("new",WAITSEND/2);
 }
@@ -507,7 +532,7 @@ function SetSlide(elm)
     $("idSlide").value=Math.min(500,elm.value);
 }
 
-function GetInputPrice(x, y, deltax, fee)
+function GetInputPrice(x, y, deltax, fee, xcurr, ycurr)
 {
     var alpha=deltax/x;
     var gama=(1-fee);
@@ -515,10 +540,10 @@ function GetInputPrice(x, y, deltax, fee)
     var oprice=x/y;
     var nprice=deltax/deltay;
     var ratio=(nprice-oprice)/oprice;
-    return {"oprice":oprice,"nprice":nprice,"ratio":ratio,"output":deltax,"input":deltay};
+    return {"oprice":oprice,"nprice":nprice,"ratio":ratio,"output":deltax,"input":deltay, "ocurr":xcurr, "icurr":ycurr};
 }
 
-function GetOutputPrice(x, y, deltay, fee)
+function GetOutputPrice(x, y, deltay, fee, xcurr, ycurr)
 {
     var beta=deltay/y;
     var gama=(1-fee);
@@ -526,150 +551,131 @@ function GetOutputPrice(x, y, deltay, fee)
     var oprice=x/y;
     var nprice=deltax/deltay;
     var ratio=(nprice-oprice)/oprice;
-    return {"oprice":oprice,"nprice":nprice,"ratio":ratio,"output":deltax,"input":deltay};
+    return {"oprice":oprice,"nprice":nprice,"ratio":ratio,"output":deltax,"input":deltay, "ocurr":xcurr, "icurr":ycurr};
 }
 
-function GetPrice()
+function GetPrice(i)
 {
-    var ArrPrice={"price":0,"inputest":0,"rate":0,"fee":0,"output":0};
     var FEE=3e-3;
-    var ArrOut=ArrOutIn[0], ArrIn=ArrOutIn[1];
-    var PStateA=GetPoolState(ArrOut.Curr);
-    var PStateB=GetPoolState(ArrIn.Curr);
-    var x,y,askAMMA,askAMMB;
-    var output=ArrOut.Amount, input=ArrIn.Amount;
-    if(ArrOut.Curr)
+    var OState=GetPoolState($("idOutputPool").value);
+    var IState=GetPoolState($("idInputPool").value);
+    var ocurr=MapCurrency[OState.Currency];
+    var icurr=MapCurrency[IState.Currency];
+    var ccurr="TERA"
+    var otoken=FLOAT_FROM_COIN(OState.token);
+    var ocoin=FLOAT_FROM_COIN(OState.coin);
+    var itoken=FLOAT_FROM_COIN(IState.token);
+    var icoin=FLOAT_FROM_COIN(IState.coin);
+    var output=$("idOutput").value;
+    var input=$("idInput").value;
+    var AMMA, AMMB;
+    if(!ocoin||!icoin)
+        return AMMA;
+    if(!i) //output > input
     {
-        if(ArrIn.Curr) //token to token /poola to poolb
+        if(OState.Currency&&IState.Currency) //token > token
         {
-            if(output)
-            {
-                //T > C, C > T
-                x=FLOAT_FROM_COIN(PStateA.token);
-                y=FLOAT_FROM_COIN(PStateA.coin);
-                askAMMA=GetInputPrice(x, y, output, FEE/2);
-                x=FLOAT_FROM_COIN(PStateB.coin);
-                y=FLOAT_FROM_COIN(PStateB.token);           
-                askAMMB=GetInputPrice(x, y, askAMMA.input, FEE/2);
-            }
-            else
-            {
-                //T < C, C < T
-                x=FLOAT_FROM_COIN(PStateB.coin);
-                y=FLOAT_FROM_COIN(PStateB.token);           
-                askAMMB=GetInputPrice(x, y, input, FEE/2);  
-                x=FLOAT_FROM_COIN(PStateA.token);
-                y=FLOAT_FROM_COIN(PStateA.coin);
-                askAMMA=GetInputPrice(x, y, askAMMB.output, FEE/2);
-            }
-            ArrPrice.price=FLOAT_FROM_COIN(PStateA.token)/FLOAT_FROM_COIN(PStateA.coin)/(FLOAT_FROM_COIN(PStateB.token)/FLOAT_FROM_COIN(PStateB.coin));
-            ArrPrice.inputest=askAMMB.input;
-            ArrPrice.rate=(askAMMA.output/askAMMB.input-ArrPrice.price)/ArrPrice.price*100;
-            ArrPrice.fee=askAMMA.output*FEE*4/3;
+            AMMA=GetInputPrice(otoken, ocoin, output, 0, ocurr, ccurr);
+            AMMB=GetInputPrice(icoin, itoken, AMMA.input, FEE, ccurr, icurr);
+            AMMA={"oprice":otoken/itoken,"nprice":AMMA.output/AMMB.input,"ratio":(AMMA.output/AMMB.input-otoken/itoken)/otoken/itoken,"output":AMMA.output,"input":AMMB.input,"ocurr":AMMA.ocurr, "icurr":AMMB.icurr};
         }
-        else //token to coin /within one pool
+        else if(OState.Currency&&!IState.Currency) // token > coin
         {
-            x=FLOAT_FROM_COIN(PStateA.token);
-            y=FLOAT_FROM_COIN(PStateA.coin);
-            askAMMA=output?GetInputPrice(x, y, output, FEE):GetOutputPrice(x, y, input, FEE);          
-            ArrPrice.price=FLOAT_FROM_COIN(PStateA.token)/FLOAT_FROM_COIN(PStateA.coin);
-            ArrPrice.inputest=askAMMA.input;
-            ArrPrice.rate=(askAMMA.output/askAMMA.input-ArrPrice.price)/ArrPrice.price*100;
-            ArrPrice.fee=askAMMA.output*FEE;
+            AMMA=GetInputPrice(otoken, ocoin, output, FEE, ocurr, ccurr);
+        }
+        else if(!OState.Currency&&IState.Currency) // coin > token
+        {
+            AMMA=GetInputPrice(ocoin, otoken, output, FEE, ccurr, ocurr);
         }
     }
-    else
+    else //input > output
     {
-        if(ArrIn.Curr) //coin to token /within one pool
+        if(OState.Currency&&IState.Currency) //token > token
         {
-            x=FLOAT_FROM_COIN(PStateB.coin);
-            y=FLOAT_FROM_COIN(PStateB.token);
-            ToLog(x+" "+y+" "+output+" "+input+" "+FEE);
-            askAMMA=output?GetInputPrice(x, y, output, FEE):GetOutputPrice(x, y, input, FEE); 
-            ArrPrice.price=FLOAT_FROM_COIN(PStateB.token)/FLOAT_FROM_COIN(PStateB.coin);
-            ArrPrice.inputest=askAMMA.input;
-            ArrPrice.rate=(askAMMA.input/askAMMA.output-ArrPrice.price)/ArrPrice.price*100;
-            ArrPrice.fee=askAMMA.output*FEE;
+            AMMB=GetOutputPrice(icoin, itoken, input, FEE, ccurr, icurr);
+            AMMA=GetOutputPrice(otoken, ocoin, AMMB.output, 0, ocurr, ccurr);
+            AMMA={"oprice":otoken/itoken,"nprice":AMMA.output/AMMB.input,"ratio":(AMMA.output/AMMB.input-otoken/itoken)/otoken/itoken,"output":AMMA.output,"input":AMMB.input,"ocurr":AMMA.ocurr, "icurr":AMMB.icurr};
         }
+        else if(OState.Currency&&!IState.Currency) // token > coin
+        {
+            AMMA=GetOutputPrice(otoken, ocoin, input, FEE, ocurr, ccurr);
+        }
+        else if(!OState.Currency&&IState.Currency) // coin > token
+        {
+            AMMA=GetOutputPrice(ocoin, otoken, input, FEE, ccurr, ocurr);
+        }        
     }
-    ToLog(x+" "+y+" "+output+" "+input+" "+FEE);
-    ArrPrice.output=askAMMA.output;
-    return ArrPrice;
+    AMMA.fee=AMMA.output*FEE;
+    return AMMA;
 }
 
 function UpdatePrice(i)
 {
-    ToLog("ArrOutIn 0: "+JSON.stringify(ArrOutIn));
-    var OutputCurr=MapCurrency[ArrOutIn[0].Curr];
-    var InputCurr=MapCurrency[ArrOutIn[1].Curr];
-    if(!$("idOutput").value&&!$("idOutput").value)
+    var ArrPrice=GetPrice(i);
+    if(!ArrPrice)
         return;
-    if(i==1)
-        $("idInput").value=0;
-    else if(i==2)
-        $("idOutput").value=0; 
-    ArrOutIn[0].Amount=parseFloat($("idOutput").value);
-    ArrOutIn[1].Amount=parseFloat($("idInput").value);
-    ToLog("ArrOutIn 1: "+JSON.stringify(ArrOutIn));
-    var ArrPrice=GetPrice();
-    $("idPrice").innerText=ArrPrice.price.toFixed(9)+" "+OutputCurr+"/"+InputCurr;
-    $("idInputEst").innerText=ArrPrice.inputest.toFixed(9) + " "+ InputCurr;
-    $("idPriceRate").innerText=ArrPrice.rate.toFixed(9) +" %";
-    $("idFee").innerText=ArrPrice.fee.toFixed(9)+" "+OutputCurr;
-    if(i==1)
-        $("idInput").value=ArrPrice.inputest;
-    else if(i==2)
-        $("idOutput").value=ArrPrice.output;   
+    $("idPrice").innerText=ArrPrice.nprice+" "+ArrPrice.ocurr+"/"+ArrPrice.icurr;
+    $("idInputEst").innerText=ArrPrice.input + " "+ ArrPrice.icurr;
+    $("idPriceRate").innerText=ArrPrice.ratio +" %";
+    $("idFee").innerText=ArrPrice.fee+" "+ArrPrice.ocurr
+    $("idInput").value=ArrPrice.input;
+    $("idOutput").value=ArrPrice.output;
 }
 
-var ArrOutIn=[{"Acc":0, "AccId":"idOutputAcc", "Pool":0, "Curr":0, "Amount":0}, {"Acc":0, "AccId":"idInputAcc", "Pool":0, "Curr":0, "Amount":0}];
-
-function OnSelectPool(elm, outIn)
+function OnSelectPool(elm, idAccList)
 {
-    ArrOutIn[outIn].Pool=elm.value;
-    ArrOutIn[outIn].Curr=GetPoolCurrency(ArrOutIn[outIn].Pool);
-    var arrAcc=GetAccount(ArrOutIn[outIn].Curr);
-    if(arrAcc.length)
+    var PoolAcc=parseInt(elm.value);
+    var PoolCurr=GetPoolCurrency(PoolAcc);
+    var ArrAcc=GetAccount(PoolCurr,PoolAcc);
+    $(idAccList).disabled=false;
+    if(ArrAcc.length)
     {
-        if(ArrOutIn[outIn].Curr)
+        if(PoolCurr)
         {
-            FillSelect(ArrOutIn[outIn].AccId,arrAcc);
-            $(ArrOutIn[outIn].AccId).disabled=false;
-            $("idAccount").value=arrAcc[0].value;
+            FillSelect(idAccList,ArrAcc);
+            $(idAccList).disabled=false;
+            $("idAccount").value=ArrAcc[0].value;
         }
-        else 
+        else
         {
-            FillSelect(ArrOutIn[outIn].AccId,[]);
-            $(ArrOutIn[outIn].AccId).disabled=true;
+            FillSelect(idAccList,[]);
+            $(idAccList).disabled=true;
         }
     }
-    else //new account
+    else
     {
-        $("idInfo").innerText="new account";
-        FillSelect(ArrOutIn[outIn].AccId,[{text:"Create new...",value:1}]);
-        $(ArrOutIn[outIn].AccId).value="";
+        FillSelect(idAccList,[{text:"Create new...",value:1}]);
+        $(idAccList).value="";
     }
 }
 
-function OnSelectAcc(elm, outIn)
+function OnSelectAcc(elm, idPoolList)
 {
-    var poolAcc=outIn==1?$("idOutputPool").value:$("idInputPool").value;
-    var poolCurr=GetPoolCurrency(poolAcc);
+    var PoolAcc=parseInt($(idPoolList).value);
+    var PoolCurr=GetPoolCurrency(PoolAcc);
     if(elm.value==="1")
     {
- //       $("idInfo").innerText="new xxxx";
-        CreateNewAccount(1,poolCurr);
+        AddNewAccount(PoolCurr);
+        setTimeout(function() {
+            var ArrAcc=GetAccount(PoolCurr,PoolAcc);
+            if(ArrAcc.length)
+            {
+                FillSelect(elm.id,GetAccount(PoolCurr,PoolAcc));
+                $(elm.id).disabled=false;
+                $("idAccount").value=ArrAcc[0].value;
+            }
+         }, 10000);
     }
-    else if(poolCurr)
+    else if(PoolCurr)
         $("idAccount").value=elm.value;
 }
 
 
 function SetMax(i)
 {
-    if(i==1&&parseInt($("idOutputAcc").value))
+    if(i==0&&parseInt($("idOutputAcc").value))
         $("idOutput").value=FLOAT_FROM_COIN(USER_ACCOUNT_MAP[parseInt($("idOutputAcc").value)].Value);
-    else if(i==2&&parseInt($("idInputAcc").value))
+    else if(i==1&&parseInt($("idInputAcc").value))
         $("idInput").value=FLOAT_FROM_COIN(USER_ACCOUNT_MAP[parseInt($("idInputAcc").value)].Value);
     else
         return;
@@ -1024,7 +1030,7 @@ document.body.insertAdjacentHTML("afterBegin",symbols);
 <!--TITLE-->
 <div class="w-85 v-18x box-col jc-center text-center">
 <div class="w-80"><svg class="sqr-18"><use fill="#667491" xlink:href="#foot"/></svg></div>
-<div class="w-80 ft-80 ft-bolder">FF Swap</div>
+<div class="w-80 ft-80 ft-bolder text-terablue">FF Swap</div>
 </div>
 <!--TAB-->
 <div class="w-80 v-10  box-row jc-sb border-bluex rounded-sm">
@@ -1044,16 +1050,16 @@ document.body.insertAdjacentHTML("afterBegin",symbols);
 <div class="w-95 box-row">
 <div class="w-50 text-left">From</div>
 <div class="w-50 text-right">
-<select size="1" id="idOutputAcc" class="border-terabluelight w-95 upper" oninput="OnSelectAcc(this,1)"><option value="0">Sender</option></select>
+<select size="1" id="idOutputAcc" class="border-terabluelight w-95 upper" oninput='OnSelectAcc(this,"idOutputPool")'><option value="0">Sender</option></select>
 </div>
 </div>
 
 <div class="w-95 box-row">
 <div class="w-50 box-row text-left">
-<input type="text" class="w-65 border-terablue" id="idOutput" autocomplete="off" maxLength=8 placeholder="0.0" oninput="UpdatePrice(1)" onchange="UpdatePrice(1)"><button class="btn text-blue" onclick="SetMax(1)">MAX</button>
+<input type="text" class="w-65 border-terablue" id="idOutput" autocomplete="off" maxLength=8 placeholder="0.0" oninput="UpdatePrice(0)" onchange="UpdatePrice(0)"><button class="btn text-blue" onclick="SetMax(0)">MAX</button>
 </div>
 <div class="w-50 text-right">
-<select size="1" id="idOutputPool" class="border-terabluelight w-70 upper" oninput="OnSelectPool(this,0)"><option value="0">Output</option></select>
+<select size="1" id="idOutputPool" class="border-terabluelight w-70 upper" oninput='OnSelectPool(this,"idOutputAcc")'><option value="0">Output</option></select>
 </div>
 </div>
 
@@ -1069,16 +1075,16 @@ document.body.insertAdjacentHTML("afterBegin",symbols);
 <div class="w-95 box-row">
 <div class="w-50 text-left">To</div>
 <div class="w-50 text-right">
-<select size="1" id="idInputAcc" class="border-terabluelight w-95 upper" oninput="OnSelectAcc(this,2)"><option value="0">Receiver</option></select>
+<select size="1" id="idInputAcc" class="border-terabluelight w-95 upper" oninput='OnSelectAcc(this,"idInputPool")'><option value="0">Receiver</option></select>
 </div>
 </div>
 
 <div class="w-95 box-row">
 <div class="w-50 box-row text-left">
-<input type="text" class="w-65 border-terablue" id="idInput" autocomplete="off" maxLength=8 placeholder="0.0" oninput="UpdatePrice(2)" onchange="UpdatePrice(2)"><button class="btn text-blue" onclick="SetMax(2)">MAX</button>
+<input type="text" class="w-65 border-terablue" id="idInput" autocomplete="off" maxLength=8 placeholder="0.0" oninput="UpdatePrice(0)" onchange="UpdatePrice(0)"><button class="btn text-blue" onclick="SetMax(1)">MAX</button>
 </div>
 <div class="w-50 text-right">
-<select size="1" id="idInputPool" class="border-terabluelight w-70 upper" oninput="OnSelectPool(this,1)"><option value="0">Input</option></select>
+<select size="1" id="idInputPool" class="border-terabluelight w-70 upper" oninput='OnSelectPool(this,"idInputAcc")'><option value="0">Input</option></select>
 </div>
 </div>
 
@@ -1097,7 +1103,7 @@ document.body.insertAdjacentHTML("afterBegin",symbols);
 
 <!--BUTTON-->
 <div class="w-80 box-col rounded-sm">
-<button class="btn" onclick='SendMethod("trade")'><svg class="cw-40 cv-10"><use fill="#667491" xlink:href="#trade"/></svg></button>
+<button class="btn bg-terablue" onclick='SendMethod("trade")'><svg class="cw-40 cv-10"><use fill="white" xlink:href="#trade"/></svg></button>
 </div>
 <div class="v-2"></div>
 
@@ -1150,15 +1156,15 @@ document.body.insertAdjacentHTML("afterBegin",symbols);
 <div class="w-100 box-row"><span id="idPCoinAll">0</span></div>
 </div>    
 <div class="w-60">
-<div class="w-100 box-row ft-30"><input type="text" class="w-90 text-center border-terablue" id="idPToken" autocomplete="off" maxLength=12 placeholder="0.00" oninput="UpdatePoolIO(1)" onchange="UpdatePoolIO(1)"><span class="upper" id="idPCurr">TERA</span></div>
+<div class="w-100 box-row ft-30"><input type="text" class="w-90 text-center border-terablue" id="idPToken" autocomplete="off" maxLength=12 placeholder="0.00" oninput="UpdatePoolIO(0)" onchange="UpdatePoolIO(0)"><span class="upper" id="idPCurr">TERA</span></div>
 <div class="w-100">+</div>
-<div class="w-100 box-row ft-30"><input type="text" class="w-90 text-center border-terablue" id="idPCoin" autocomplete="off" maxLength=12 placeholder="0.00" oninput="UpdatePoolIO(2)" onchange="UpdatePoolIO(2)">TERA</div>
+<div class="w-100 box-row ft-30"><input type="text" class="w-90 text-center border-terablue" id="idPCoin" autocomplete="off" maxLength=12 placeholder="0.00" oninput="UpdatePoolIO(1)" onchange="UpdatePoolIO(1)">TERA</div>
 </div>
 </div>
 <div class="w-90 text-left">Your Share: <span id="idPShare">0</span></div>
 </div>
 <div class="w-30 v-90 box-col jc-sa">
-<div class="w-80"><button class="w-100 btn" id="idAddBtn" onclick='SendMethod("add")'><svg class="sqr-10"><use fill="#667491" xlink:href="#income"/></svg><br>Add</button></div>
+<div class="w-80"><button class="w-100 btn" id="idAddBtn" onclick='SendMethod("add")'><svg class="sqr-10"><use fill="green" xlink:href="#income"/></svg><br>Add</button></div>
 <div class="w-80"><button class="w-100 btn" id="idRemoveBtn" onclick='SendMethod("remove")'><svg class="sqr-10"><use fill="brown" xlink:href="#outcome"/></svg><br>Remove</button></div>
 </div>
 </div>
@@ -1176,7 +1182,7 @@ document.body.insertAdjacentHTML("afterBegin",symbols);
 <select size="1" id="idCurrency" class="w-70 ft-40 border-terablue"><option value="0">idCurrency</option></select>
 </div>
 <div class="w-30">
-<button class="w-80 btn upper" onclick="AddNewAccount(1)"><svg class="sqr-10"><use fill="#667491" xlink:href="#plus"/></svg><br>New</button>
+<button class="w-80 btn upper" onclick="AddTokenAccount()"><svg class="sqr-10"><use fill="#667491" xlink:href="#plus"/></svg><br>New</button>
 </div>
 </div>    
 </fieldset>
@@ -1190,12 +1196,12 @@ document.body.insertAdjacentHTML("afterBegin",symbols);
 <select size="1" id="idPeerNew" class="w-70 ft-40 border-terablue"><option value="0">idPeerNew</option></select>
 </div>
 <div class="w-30">
-<button class="w-80 btn upper" id="idPeerBtn" onclick='SendMethod("bind")'><svg class="sqr-10"><use fill="brown" xlink:href="#bind"/></svg><br>Bind</button>
+<button class="w-80 btn upper" id="idPeerBtn" onclick='SendMethod("bind")'><svg class="sqr-10"><use fill="#667491" xlink:href="#bind"/></svg><br>Bind</button>
 </div>
 </div>    
 </fieldset>
 
-<div class="text-red">* Bind TERA Account Firstly</div>
+<div class="text-red" id="idBindAlert"></div>
 
 </div> 
 <!--NEW ACCOUNT-->
