@@ -47,7 +47,7 @@ function OnGet()
 function OnSend()
 {
     var UState=ReadState(context.FromNum);
-    //Qualify(!(!context.SmartMode&&UState.pprev),"Send");
+    Qualify(!(!context.SmartMode&&UState.pprev),"Send");
 }
 
 //{peer:uint,pprev:uint,pnext:uint,token:{SumCOIN:uint,SumCENT:uint32},coin:{SumCOIN:uint,SumCENT:uint32},share:double,HTMLBlock:uint,HTMLTr:uint16}
@@ -120,8 +120,8 @@ function DoAddLP(UState,PState,Params)
 {
     var ptoken=FLOAT_FROM_COIN(PState.token);
     var pcoin=FLOAT_FROM_COIN(PState.coin);
-    var output=parseFloat(Params.output);
-    var input=parseFloat(Params.input);
+    var output=parseFloat(Params.output)||0;
+    var input=parseFloat(Params.input)||0;
     var share=1; //new liquidity
     if(ptoken&&pcoin) //liquidity existed.
     {
@@ -143,7 +143,7 @@ function DoRemoveLP(UState,PState,Params)
 {
     var ptoken=FLOAT_FROM_COIN(PState.token);
     var pcoin=FLOAT_FROM_COIN(PState.coin);    
-    var output=parseFloat(Params.output);
+    var output=parseFloat(Params.output)||0;
     Qualify(ptoken&&pcoin,"remove 2");    
     var input=output*(pcoin/ptoken);
     Share=output/(ptoken/PState.share);
@@ -160,7 +160,8 @@ function DoRemoveLP(UState,PState,Params)
 
 function DoTrade(UState,PState,Params)
 {
-        var output=parseFloat(Params.output);
+        var output=parseFloat(Params.output)||0;
+        Qualify(output>1e-9,"output");
         var slide=parseFloat(Params.slide);
         var poolb=parseUint(Params.poolb);
         var PStateB=ReadState(poolb);
@@ -239,8 +240,7 @@ var PAccount=ReadAccount(PState.Num);
 switch(cmd)
 {
 	case "bind"://set peer //Params:{cmd, poola} 
-        var bPubkey=true;
-        //var bPubkey=DoCheckPubkey(PAccount.PubKey.data,UAccount.PubKey.data); //code needed
+        var bPubkey=JSON.stringify(PAccount.PubKey)==JSON.stringify(UAccount.PubKey); //check PubKey
         Qualify(UAccount.Currency&&!PAccount.Currency&&bPubkey&&PAccount.Value.Smart==UAccount.Value.Smart&&PAccount.Value.Smart==context.Smart.Num,"peer");
         DoBind(UState,PState.Num);
         DoEvent(UState.Num, cmd);
