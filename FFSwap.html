@@ -56,7 +56,6 @@
 var UState={Num:0}, SState, U_ACCOUNT, PanelID=0, InfoWaitx=0;
 var ArrPool=[], ArrPoolListLast=[], ArrPoolList=[], ArrPoolState=[];
 
-
 function UpdateInfo()
 {
     SState=BASE_ACCOUNT.SmartState;
@@ -146,6 +145,7 @@ function UpdateInfo()
                 //$("idPCoinAll").innerText=FLOAT_FROM_COIN(PoolState.coin).toFixed(2);
                 $("idPShare").innerText=PoolState.share?UState.share/PoolState.share:0;
                 $("idPCurr").innerText=MapCurrency[U_ACCOUNT.Currency];
+                $("idNewShare").innerText=parseFloat($("idPCoin").value)/FLOAT_FROM_COIN(PoolState.coin)*100;
             }
         }
         if(U_ACCOUNT.Currency&&!InfoWait)
@@ -197,9 +197,10 @@ function SendMethod(cmd)
             Params.poola=parseUint($("idOutputPool").value);
             Params.poolb=parseUint($("idInputPool").value);
             Params.output=parseFloat($("idOutput").value)||0;
-            Params.slide=parseFloat($("idSlide").value)||0;
+            Params.input=parseFloat($("idInput").value)||0;
+            Params.slide=parseUint($("idSlide").value);
             Params.payee=parseUint($("idInputAcc").value);
-            if((Params.poola==SState.Num&&Params.poolb==SState.Num)||Params.output<1e-9)
+            if((Params.poola==SState.Num&&Params.poolb==SState.Num)||Params.output<1e-9||Params.input<1e-9||Params.slide>500)
             {
                 SetErr("ERR: " +"invalid order information");
                 return;
@@ -850,6 +851,7 @@ xbody {color: #667491;}
 .cw-45 {width: calc(var(--fwidth) * 45);}
 .cw-50 {width: calc(var(--fwidth) * 50);}
 
+.cv-8 {height: calc(var(--fwidth) * 8);}
 .cv-10 {height: calc(var(--fwidth) * 10);}
 .cv-13 {height: calc(var(--fwidth) * 13);}
 .cv-15 {height: calc(var(--fwidth) * 15);}
@@ -1036,13 +1038,13 @@ document.body.insertAdjacentHTML("afterBegin",symbols);
 <div class="w-80 ft-80 ft-bolder text-terablue">FF Swap</div>
 </div>
 <!--TAB-->
-<div class="w-80 v-10  box-row jc-sb border-bluex rounded-sm">
+<div class="w-80 v-10 box-row jc-sb border-bluex rounded-sm">
 <button class="btn bg-white" onclick="SelectPanel(0)"><svg class="cw-20 cv-10"><use fill="#667491" xlink:href="#trade"/></svg></button>
 <button class="btn bg-white" onclick="SelectPanel(1)"><svg class="cw-20 cv-10"><use fill="#667491" xlink:href="#income"/></svg></button>
 <button class="btn bg-white" onclick="SelectPanel(2)"><svg class="cw-20 cv-10"><use fill="#667491" xlink:href="#setting"/></svg></button>
 </div>
 
-<div class="w-100 v-5 text-center"><select size="1" id="idAccount" class="w-80 border-terabluelight rounded-sm upper"><option value="0">Loading</option></select></div>
+<div class="w-100 v-5 text-center"><select size="1" id="idAccount" class="w-80 border-terabluelight ft-45"><option value="0">Loading</option></select></div>
 
 <!--PANEL-->
 <div class="w-100 v-70 box-row panel">
@@ -1053,7 +1055,7 @@ document.body.insertAdjacentHTML("afterBegin",symbols);
 <div class="w-95 box-row">
 <div class="w-50 text-left">From</div>
 <div class="w-50 text-right">
-<select size="1" id="idOutputAcc" class="border-terabluelight w-95 upper" oninput='OnSelectAcc(this,"idOutputPool")'><option value="0">Sender</option></select>
+<select size="1" id="idOutputAcc" class="border-terabluelight w-95" oninput='OnSelectAcc(this,"idOutputPool")'><option value="0">Sender</option></select>
 </div>
 </div>
 
@@ -1062,7 +1064,7 @@ document.body.insertAdjacentHTML("afterBegin",symbols);
 <input type="text" class="w-65 border-terablue" id="idOutput" autocomplete="off" maxLength=8 placeholder="0.0" oninput="UpdatePrice(0)" onchange="UpdatePrice(0)"><button class="btn text-brown" onclick="SetMax(0)">MAX</button>
 </div>
 <div class="w-50 text-right">
-<select size="1" id="idOutputPool" class="border-terabluelight w-70 upper" oninput='OnSelectPool(this,"idOutputAcc")'><option value="0">Output</option></select>
+<select size="1" id="idOutputPool" class="border-terabluelight w-70" oninput='OnSelectPool(this,"idOutputAcc")'><option value="0">Output</option></select>
 </div>
 </div>
 
@@ -1078,7 +1080,7 @@ document.body.insertAdjacentHTML("afterBegin",symbols);
 <div class="w-95 box-row">
 <div class="w-50 text-left">To</div>
 <div class="w-50 text-right">
-<select size="1" id="idInputAcc" class="border-terabluelight w-95 upper" oninput='OnSelectAcc(this,"idInputPool")'><option value="0">Receiver</option></select>
+<select size="1" id="idInputAcc" class="w-95 border-terabluelight" oninput='OnSelectAcc(this,"idInputPool")'><option value="0">Receiver</option></select>
 </div>
 </div>
 
@@ -1098,7 +1100,7 @@ document.body.insertAdjacentHTML("afterBegin",symbols);
 <div class="w-80 v-10x box-row text-center border-terablue rounded-sm">
 <div class="w-30 text-right">Slide:&nbsp;</div>
 <div class="w-70 box-row jc-center">
-<div class="w-70"><input class="w-80" type="range" id="idSlide" min="1" max="1000" step="1" value="1" onchange="SetSlide(this)" oninput="SetSlide(this)"/></div>
+<div class="w-70"><input class="w-80" type="range" id="idSlide" min="0" max="500" step="1" value="1" onchange="SetSlide(this)" oninput="SetSlide(this)"/></div>
 <div class="w-30"><span id="idSlideRate">0.1</span>%</div>
 </div>
 </div>
@@ -1106,23 +1108,23 @@ document.body.insertAdjacentHTML("afterBegin",symbols);
 
 <!--BUTTON-->
 <div class="w-80 box-col rounded-sm">
-<button class="btn bg-terablue" onclick='SendMethod("trade")'><svg class="cw-40 cv-10"><use fill="white" xlink:href="#trade"/></svg></button>
+<button class="btn bg-terablue" onclick='SendMethod("trade")'><svg class="cw-50 cv-8"><use fill="white" xlink:href="#trade"/></svg></button>
 </div>
 <div class="v-2"></div>
 
 <!--PRICE-->
 <div class="w-80 v-20 box-col jc-center border-terablue rounded-sm">
 <div class="w-100 v-30 box-row">
-<div class="w-30 text-right">Received:&nbsp;</div>
-<div class="w-70 upper"><span id="idInputEst">0</span></div>
+<div class="w-35 text-right">Received:&nbsp;</div>
+<div class="w-65 upper"><span id="idInputEst">0</span></div>
 </div>
 <div class="w-100 v-30 box-row">
-<div class="w-30 text-right">Impact:&nbsp;</div>
-<div class="w-70 upper"><span id="idPriceRate">0</span></div>
+<div class="w-35 text-right">Impact:&nbsp;</div>
+<div class="w-65 upper"><span id="idPriceRate">0</span></div>
 </div>
 <div class="w-100 v-30 box-row">
-<div class="w-30 text-right">LP fee:&nbsp;</div>
-<div class="w-70 upper"><span id="idFee">0</span></div>
+<div class="w-35 text-right">Liquidity fee:&nbsp;</div>
+<div class="w-65 upper"><span id="idFee">0</span></div>
 </div>
 </div>
 
@@ -1149,20 +1151,20 @@ document.body.insertAdjacentHTML("afterBegin",symbols);
 
 <fieldset class="w-80 v-50 box-col rounded-sm text-center border-terablue">
 <legend class="ft-45 ft-bold">Add/Remove Liquidity</legend>
-<div class="w-100 v-85 box-col">
-<div class="w-90 text-left">Pool: <select size="1" id="idPPool"  class="w-60 border-terablue upper" disabled><option value="0">PPool Loading</option></select></div>
-<div class="w-100 v-70 box-col jc-sa border-bluex" id="idPoolArea">
-<div class="w-90 box-row">
-<div class="w-70 v-100 box-col jc-sa">
-<div class="w-100 v-30 box-row"><input type="text" class="w-90 text-center border-terablue" id="idPToken" autocomplete="off" maxLength=12 placeholder="0.00" oninput="UpdatePoolIO(0)" onchange="UpdatePoolIO(0)"><span class="upper" id="idPCurr">TERA</span></div>
+<div class="w-100 v-90 box-col jc-sa">
+<div class="w-90"><select size="1" id="idPPool"  class="w-60 border-terablue upper ft-50" disabled><option value="0">Loading</option></select></div>
+<div class="w-100 v-70 box-col jc-sa rounded-md" id="idPoolArea">
+<div class="w-90 v-60 box-row">
+<div class="w-70 v-90 box-col jc-sa">
+<div class="w-100 v-30 box-row"><input type="text" class="w-90 text-center border-terablue ft-40" id="idPToken" autocomplete="off" maxLength=12 placeholder="0.00" oninput="UpdatePoolIO(0)" onchange="UpdatePoolIO(0)"><span class="upper" id="idPCurr">TERA</span></div>
 <div class="w-100 v-30 ">+</div>
-<div class="w-100 v-30 box-row"><input type="text" class="w-90 text-center border-terablue" id="idPCoin" autocomplete="off" maxLength=12 placeholder="0.00" oninput="UpdatePoolIO(1)" onchange="UpdatePoolIO(1)">TERA</div>
+<div class="w-100 v-30 box-row"><input type="text" class="w-90 text-center border-terablue ft-40" id="idPCoin" autocomplete="off" maxLength=12 placeholder="0.00" oninput="UpdatePoolIO(1)" onchange="UpdatePoolIO(1)">TERA</div>
 </div>
-<div class="w-30">new share</div>
+<div class="w-30"><span id="idNewShare">0</span>%</div>
 </div>
-<div class="w-90 box-row jc-sb">
-<div class="w-45"><button class="w-100 btn bg-white upper" id="idAddBtn" onclick='SendMethod("add")'><svg class="sqr-8"><use fill="green" xlink:href="#income"/></svg></button></div>
-<div class="w-45"><button class="w-100 btn bg-white upper" id="idRemoveBtn" onclick='SendMethod("remove")'><svg class="sqr-8"><use fill="brown" xlink:href="#outcome"/></svg></button></div>
+<div class="w-90 v-40 box-row jc-sa">
+<div class="w-50"><button class="w-100 btn bg-white upper" id="idAddBtn" onclick='SendMethod("add")'><svg class="sqr-7"><use fill="green" xlink:href="#income"/></svg></button></div>
+<div class="w-50"><button class="w-100 btn bg-white upper" id="idRemoveBtn" onclick='SendMethod("remove")'><svg class="sqr-7"><use fill="brown" xlink:href="#outcome"/></svg></button></div>
 </div>
 
 </div>
