@@ -161,26 +161,28 @@ function DoRemoveLP(UState,PState,Params)
 function DoTrade(UState,PState,Params)
 {
         var output=parseFloat(Params.output)||0;
-        Qualify(output>1e-9,"output");
-        var slide=parseFloat(Params.slide);
+        var inputExpected=parseFloat(Params.input)||0;
+        var slide=parseUint(Params.slide)||0;
         var poolb=parseUint(Params.poolb);
+        Qualify(output>1e-9&&inputExpected>1e-9&&slide<50&&poolb>0,"trade 1");
         var PStateB=ReadState(poolb);
         var ptoken=FLOAT_FROM_COIN(PState.token);
         var pcoin=FLOAT_FROM_COIN(PState.coin);
         var ptokenB=FLOAT_FROM_COIN(PStateB.token);
         var pcoinB=FLOAT_FROM_COIN(PStateB.coin);
-        var askAMM, input=0;
+        var askAMM, input=0, bSlide;
         if(PState.pprev&&PStateB.pprev) //T-T
         {
     	    var payee=parseUint(Params.payee);
     		var askAMMB;
-            Qualify(ptoken&&pcoin&&ptokenB&&pcoinB,"token/token 1");
+            Qualify(ptoken&&pcoin&&ptokenB&&pcoinB&&payee,"token/token 1");
 			//T > C, C > T
 			askAMM=GetInputPrice(ptoken, pcoin, output, 0);
 			askAMMB=GetInputPrice(pcoinB, ptokenB, askAMM.input, FEE);  //askAMM.input=askAMMB.output here
             var coinab=askAMMA.input;
             input=askAMMB.input;
-            Qualify(output>1e-9&&input>1e-9&&coinab>1e-9,"token/token 2");
+            bSlide=Math.abs((input-inputExpected)/inputExpected)*100<slide;
+            Qualify(output>1e-9&&input>1e-9&&coinab>1e-9&&bSlide,"token/token 2");
             Move(UState.Num, PState.Num, output, ""); // tokena to poola;
             Move(PStateB.Num, payee, input,""); // tokenb to payee;
             ADD(PState.token,COIN_FROM_FLOAT(output));
@@ -195,8 +197,8 @@ function DoTrade(UState,PState,Params)
             Qualify(ptoken&&pcoin,"tokenToCoin 1");
             askAMM=GetInputPrice(ptoken, pcoin, output, FEE);
             input=askAMM.input;
-            Qualify(output>1e-9&&input>1e-9,"tokenToCoin 2");
-            //Qualify(askAMM.ratio<slide,"tokenToCoin 3");
+            bSlide=Math.abs((input-inputExpected)/inputExpected)*100<slide;
+            Qualify(output>1e-9&&input>1e-9&&bSlide,"tokenToCoin 2");
             Move(UState.Num, PState.Num, output, ""); // token to pool;
             Move(context.Smart.Account, UState.peer, input, ""); // coin to peer;
             ADD(PState.token,COIN_FROM_FLOAT(output));
@@ -207,9 +209,9 @@ function DoTrade(UState,PState,Params)
         {
             Qualify(ptokenB&&pcoinB,"coinToToken 1");
             askAMM=GetInputPrice(pcoinB, ptokenB, output, FEE);
-            input=askAMM.input;    
-            Qualify(output>1e-9&&input>1e-9,"coinToToken 2");
-            //Qualify(askAMM.ratio<slide,"coinToToken 3");   
+            input=askAMM.input;
+            bSlide=Math.abs((input-inputExpected)/inputExpected)*100<slide;
+            Qualify(output>1e-9&&input>1e-9&&bSlide,"coinToToken 2");
             Move(PState.Num, UState.Num, input, ""); // token to user;
             Move(UState.peer, context.Smart.Account, output,""); // coin to smart pool;
             SUB(PState.token,COIN_FROM_FLOAT(input));
@@ -252,7 +254,6 @@ switch(cmd)
 		DoEvent(UState.Num,cmd);
 	break;
 	case "add"://add to lph //Params:{cmd, poola, output, input} 
-	//22nd Sept, 2020, to simplify the process, only output is a must, input only used in new liquidity, the rest input will be calculated by formula.
 	//Qualification/execution/notification
         Qualify(PState.pprev&&PAccount.Currency==UAccount.Currency&&UState.peer,"add 1");
         DoAddLP(UState,PState,Params);
@@ -263,7 +264,7 @@ switch(cmd)
         DoRemoveLP(UState,PState,Params);
         DoEvent(UState.Num,cmd);
 	break;
-	case "trade"://swap token to coin //Params:{cmd, poola, poolb, output, payee, slide}
+	case "trade"://swap token to coin //Params:{cmd, poola, poolb, output, input, payee, slide}
         DoTrade(UState,PState,Params);
         DoEvent(UState.Num,cmd);
 	break;
