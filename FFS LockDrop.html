@@ -129,7 +129,7 @@ function ToDate(time)
 function GetBase()
 {
     var resttoken=BASE_ACCOUNT.Value.SumCOIN;
-    return Math.pow(2,Math.ceil(resttoken/2e7)-5)/500;
+    return Math.pow(2,Math.ceil(resttoken/2e4)-5)/500/1440;
 }
 
 function UpdateInfo()
@@ -150,26 +150,24 @@ function UpdateInfo()
         UState=U_ACCOUNT.SmartState;
         var ArrSlot=UState.Slot;
         $("idPeerAcc").innerText=UState.peer;
-        $("idSlotBase0").innerHTML="Base: "+(base/2).toFixed(5);
-        $("idSlotBase1").innerHTML="Base: "+base.toFixed(5);
-        $("idSlotBase2").innerHTML="Base: "+(base*4).toFixed(5);
         $("idSlotAmount0").innerHTML=ArrSlot[0].Amount+" TERA";
         $("idSlotAmount1").innerHTML=ArrSlot[1].Amount+" TERA";
         $("idSlotAmount2").innerHTML=ArrSlot[2].Amount+" TERA";
-        $("idSlotReward0").innerHTML=(ArrSlot[0].Amount*base/2).toFixed(4)+" FFS";
-        $("idSlotReward1").innerHTML=(ArrSlot[1].Amount*base).toFixed(4)+" FFS";
-        $("idSlotReward2").innerHTML=(ArrSlot[2].Amount*base*4).toFixed(4)+" FFS"; 
+        $("idSlotReward0").innerHTML=(ArrSlot[0].Amount*base/2*(Math.min(INFO.CurBlockNum,ArrSlot[0].EndBlock)-UState.ClaimBlock)).toFixed(4)+" FFS";
+        $("idSlotReward1").innerHTML=(ArrSlot[1].Amount*base*(Math.min(INFO.CurBlockNum,ArrSlot[1].EndBlock)-UState.ClaimBlock)).toFixed(4)+" FFS";
+        $("idSlotReward2").innerHTML=(ArrSlot[2].Amount*base*4*(Math.min(INFO.CurBlockNum,ArrSlot[2].EndBlock)-UState.ClaimBlock)).toFixed(4)+" FFS"; 
         $("idSlotBlock0").innerHTML=ToDate((ArrSlot[0].EndBlock-INFO.CurBlockNum)*3);
         $("idSlotBlock1").innerHTML=ToDate((ArrSlot[1].EndBlock-INFO.CurBlockNum)*3);
         $("idSlotBlock2").innerHTML=ToDate((ArrSlot[2].EndBlock-INFO.CurBlockNum)*3);
         $("idSlide").max=U_ACCOUNT.Value.SumCOIN-GetLocked(UState);
-        $("idClaimTotal").innerHTML=((ArrSlot[0].Amount*base/2)+(ArrSlot[1].Amount*base)+(ArrSlot[2].Amount*base*4)).toFixed(4);
-        if(!UState.ClaimBlock)
-            $("idClaim").innerHTML="Lock TERA";
-        else if(UState.ClaimBlock<INFO.CurBlockNum)
-            $("idClaim").innerHTML="Claim";
+        var RewardTotal=ArrSlot[0].Amount*base/2*(Math.min(INFO.CurBlockNum,ArrSlot[0].EndBlock)-UState.ClaimBlock);
+        RewardTotal+=ArrSlot[1].Amount*base*(Math.min(INFO.CurBlockNum,ArrSlot[1].EndBlock)-UState.ClaimBlock);
+        RewardTotal+=ArrSlot[2].Amount*base*4*(Math.min(INFO.CurBlockNum,ArrSlot[2].EndBlock)-UState.ClaimBlock);
+        $("idClaimTotal").innerHTML=RewardTotal.toFixed(5);
+        if(GetLocked(UState))
+            $("idClaim").innerHTML="harvest";
         else
-            $("idClaim").innerHTML=ToDate((UState.ClaimBlock-INFO.CurBlockNum)*3);
+            $("idClaim").innerHTML="Lock TERA";            
         for(var i=0; i<UState.Slot.length; i++)
         {
             var ArrUnlockBtn=$$("unlockbtn");
@@ -187,7 +185,7 @@ function UpdateInfo()
     $("idSendCount").innerText=CountWait;
 }
 
-function SendMethod(cmd)
+function SendMethod(cmd,slot)
 {
     TogglePanelByClass("modalex",1);
     if(!UState.peer&&cmd!="bind"&&cmd!="new")
@@ -232,7 +230,7 @@ function SendMethod(cmd)
             Params.slot=slot;
         break;
         case "claim":
-            if(!UState.ClaimBlock)
+            if(!GetLocked(UState))
             {
                 SelectPanel(2);
                 return;
@@ -243,6 +241,11 @@ function SendMethod(cmd)
                 SetErr("Unlock firstly");
                 return;
             }
+            if(UState.ClaimBlock+40>INFO.CurBlockNum)
+            {
+                SetErr("Not ready yet");
+                return;
+            }            
         break;
         case "new":
             CreateNewAccount(0);
@@ -635,6 +638,10 @@ width: calc(var(--fwidth) * 25);
 .border-brown {border: calc(var(--fwidth) * 0.3) solid brown;}
 .border-gold {border: calc(var(--fwidth) * 0.3) solid gold;}
 
+fieldset {padding: 0;}
+legend {padding-left: calc(var(--fwidth) * 2);}
+select, input {border-radius: calc(var(--fwidth) * 1);}
+
 .btn:disabled
 {
     opacity: 70%;
@@ -738,14 +745,14 @@ document.body.insertAdjacentHTML("afterBegin",symbols);
 
 <!--CLAIM-->
 <div class="w-80 v-35 box-col jc-sa rounded-md bread-border bread-box-bg">
-<div class="w-95 v-15">FFS to Claim</div>
+<div class="w-95 v-15">FFS to harvest</div>
 <div class="w-100 v-50 box-row text-center">
 <div class="w-30"><svg class="sqr-13"><use fill="#AC562A" xlink:href="#foot"/></svg></div>
 <div class="w-70 ft-100 ft-bolder text-left" id="idClaimTotal">Loading</div>
 </div>
 <div class="w-95 v-20 box-row">
-<div class="w-35 ft-35 text-left">Time to claim</div>
-<div class="w-60 text-right"><button class="w-80 v-100 ft-45 ft-bolder btn bread-text-strong bread-btn-bglight" onclick='SendMethod("claim")'><span id="idClaim">Claim</span></button></div>
+<div class="w-35 ft-35 text-left"></div>
+<div class="w-60 text-right"><button class="w-80 v-100 ft-45 ft-bolder btn bread-text-strong bread-btn-bglight upper" onclick='SendMethod("claim")'><span id="idClaim">harvest</span></button></div>
 </div>
 </div>
 
@@ -771,69 +778,45 @@ document.body.insertAdjacentHTML("afterBegin",symbols);
 
 <!--LOCK TAB-->
 <div class="tabpanel box-col jc-sa bread-text-strong border-bluex" id="idAccountPanel" style="display:none;">
+
 <!--7d-->
-<div class="w-80 v-25 box-col jc-sb rounded-md text-center bread-border bread-box-bg">
-<div class="w-100 box-row jc-sa ft-50 bread-btn-bglight rounded-sm">
-<div class="w-60 text-left">Lock 1 week</div>
-<div class="w-30 ft-30" id="idSlotBase0">1</div>
-</div>
-<div class="w-100 box-row">
-<div class="w-60 ft-50" id="idSlotAmount0">1</div>
-</div>
-<div class="w-100 box-row">
-<div class="w-60 ft-40" id="idSlotReward0">1</div>
-</div>
-<div class="w-100 box-row jc-center">
-<div class="w-75">
-<button class="w-80 v-100 ft-45 btn unlockbtn bread-text-strong bread-btn-bglight" onclick='SendMethod("unlock",0)'><span id="idSlotBlock0">Unlock</span></button>
-</div>
-<div class="w-15">
-<button class="w-100 v-100 ft-45 ft-bolder btn text-white bread-btn-bg" onclick="SetLock(0)">+</button>
+<fieldset class="w-80 v-25 box-col jc-center rounded-md text-center bread-border bread-box-bg">
+<legend class="w-50 text-left rounded-sm bread-btn-bglight text-black ft-lighter ft-50">Lock 1 Week 1x</legend>
+<div class="w-100 v-75 box-col jc-fe">
+<div class="w-100 v-35 ft-50" id="idSlotAmount0">1</div>
+<div class="w-100 v-25 ft-40" id="idSlotReward0">1</div>
+<div class="w-100 v-25 box-row jc-center">
+<div class="w-75"><button class="w-80 v-100 ft-45 btn unlockbtn bread-text-strong bread-btn-bglight" onclick='SendMethod("unlock",0)'><span id="idSlotBlock0">Unlock</span></button></div>
+<div class="w-15"><button class="w-100 v-100 ft-45 ft-bolder btn text-white bread-btn-bg" onclick="SetLock(0)">+</button></div>
 </div>
 </div>
-</div>
+</fieldset>
+
 <!--30d-->
-<div class="w-80 v-25 box-col jc-sb rounded-md text-center bread-border bread-box-bg">
-<div class="w-100 box-row jc-sa ft-50 bread-btn-bglight rounded-sm">
-<div class="w-60 text-left">Lock 1 month</div>
-<div class="w-30 ft-30" id="idSlotBase1">1</div>
-</div>
-<div class="w-100 box-row">
-<div class="w-60 ft-50" id="idSlotAmount1">1</div>
-</div>
-<div class="w-100 box-row">
-<div class="w-60 ft-40" id="idSlotReward1">1</div>
-</div>
-<div class="w-100 box-row jc-center">
-<div class="w-75">
-<button class="w-80 v-100 ft-45 btn unlockbtn bread-text-strong bread-btn-bglight" onclick='SendMethod("unlock",1)'><span id="idSlotBlock1">Unlock</span></button>
-</div>
-<div class="w-15">
-<button class="w-100 v-100 ft-45 ft-bolder btn text-white bread-btn-bg" onclick="SetLock(1)">+</button>
+<fieldset class="w-80 v-25 box-col jc-center rounded-md text-center bread-border bread-box-bg">
+<legend class="w-50 text-left rounded-sm bread-btn-bglight text-black ft-lighter ft-50">Lock 1 Month 2x</legend>
+<div class="w-100 v-75 box-col jc-fe">
+<div class="w-100 v-35 ft-50" id="idSlotAmount1">1</div>
+<div class="w-100 v-25 ft-40" id="idSlotReward1">1</div>
+<div class="w-100 v-25 box-row jc-center">
+<div class="w-75"><button class="w-80 v-100 ft-45 btn unlockbtn bread-text-strong bread-btn-bglight" onclick='SendMethod("unlock",1)'><span id="idSlotBlock1">Unlock</span></button></div>
+<div class="w-15"><button class="w-100 v-100 ft-45 ft-bolder btn text-white bread-btn-bg" onclick="SetLock(1)">+</button></div>
 </div>
 </div>
-</div>
+</fieldset>
+
 <!--365d-->
-<div class="w-80 v-25 box-col jc-sb rounded-md text-center bread-border bread-box-bg">
-<div class="w-100 box-row jc-sa ft-50 bread-btn-bglight rounded-sm">
-<div class="w-60 text-left">Lock 1 year</div>
-<div class="w-30 ft-30" id="idSlotBase2">1</div>
-</div>
-<div class="w-100 box-row">
-<div class="w-60 ft-50" id="idSlotAmount2">1</div>
-</div>
-<div class="w-100 box-row">
-<div class="w-60 ft-40" id="idSlotReward2">1</div>
-</div>
-<div class="w-100 box-row jc-center">
-<div class="w-75">
-<button class="w-80 v-100 v-100 ft-45 btn unlockbtn bread-text-strong bread-btn-bglight" onclick='SendMethod("unlock",2)'><span id="idSlotBlock2">Unlock</span></button>
-</div>
-<div class="w-15">
-<button class="w-100 v-100 ft-45 ft-bolder btn text-white bread-btn-bg" onclick="SetLock(2)">+</button>
+<fieldset class="w-80 v-25 box-col jc-center rounded-md text-center bread-border bread-box-bg">
+<legend class="w-50 text-left rounded-sm bread-btn-bglight text-black ft-lighter ft-50">Lock 1 Year 8x</legend>
+<div class="w-100 v-75 box-col jc-fe">
+<div class="w-100 v-35 ft-50" id="idSlotAmount2">1</div>
+<div class="w-100 v-25 ft-40" id="idSlotReward2">1</div>
+<div class="w-100 v-25 box-row jc-center">
+<div class="w-75"><button class="w-80 v-100 ft-45 btn unlockbtn bread-text-strong bread-btn-bglight" onclick='SendMethod("unlock",2)'><span id="idSlotBlock2">Unlock</span></button></div>
+<div class="w-15"><button class="w-100 v-100 ft-45 ft-bolder btn text-white bread-btn-bg" onclick="SetLock(2)">+</button></div>
 </div>
 </div>
-</div>
+</fieldset>
 
 <div class="w-80 v-8 box-col"><button class="w-50 v-100 ft-40 ft-bolder btn text-white bread-btn-bg" onclick="SelectPanel(0)">Back</button></div>
 
