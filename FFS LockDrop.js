@@ -141,7 +141,7 @@ function Round(Params)
             break;
         case 'lock':
             Qualify(UState.peer,"No peer");
-            Qualify(!UAccount.Currency,"TERA Account Only");
+            //Qualify(!UAccount.Currency,"TERA Account Only");
             Qualify(scoin,"Hey, party is over");            
             Qualify(CheckLock(UState),"Unlock firstly");
             slot=parseUint(Params.slot);
@@ -152,7 +152,7 @@ function Round(Params)
             UState=DoClaim(UState,SState,scoin);
             UState.Slot[slot].Amount+=amount;
             SState.Slot[slot].Amount+=amount;
-            UState.Slot[slot].EndBlock=context.BlockNum+28800*lockday[slot]/10000;
+            UState.Slot[slot].EndBlock=context.BlockNum+28800*lockday[slot]/5000;
             WriteState(UState);
             WriteState(SState);
             DoEvent(UState.Num, cmd);
