@@ -110,7 +110,7 @@ function UpdateInfo()
             $("idPoolBtn").disabled=false;
             $("idPoolNew").innerText="["+MapCurrency[U_ACCOUNT.Currency]+"]: "+U_ACCOUNT.Num;
         }
-        $("idPPool").value=GetPoolByCurrency(U_ACCOUNT.Currency);
+        //$("idPPool").value=GetPoolByCurrency(U_ACCOUNT.Currency);
         //update account panel
         FillSelect("idCurrency",GetCurrencyList());
         FillSelect("idPeerNew",GetAccount(0));
@@ -126,7 +126,7 @@ function UpdateInfo()
         }
         //update arrpool
         var ArrPoolAcc=[];
-        var ArrPoolAccCan=[parseUint($("idOutputPool").value),parseUint($("idInputPool").value),parseUint($("idPPool").value)];
+        var ArrPoolAccCan=[parseUint($("idOutputPool").value),parseUint($("idInputPool").value),GetPoolByCurrency(U_ACCOUNT.Currency)];
         ArrPoolAccCan=UniqArr(ArrPoolAccCan);
         for(var i=0;i<ArrPoolAccCan.length;i++)
         {
@@ -136,17 +136,12 @@ function UpdateInfo()
         if(ArrPoolAcc.length)
             UpdatePoolState(ArrPoolAcc); //update poolstates
         //update poolstate
-        if(parseUint($("idPPool").value))
+        if(U_ACCOUNT.Currency)
         {
-            var PoolState=GetPoolState($("idPPool").value);
-            if(PoolState)
-            {
-                //$("idPTokenAll").innerText=FLOAT_FROM_COIN(PoolState.token).toFixed(2);
-                //$("idPCoinAll").innerText=FLOAT_FROM_COIN(PoolState.coin).toFixed(2);
-                $("idPShare").innerText=PoolState.share?UState.share/PoolState.share:0;
-                $("idPCurr").innerText=MapCurrency[U_ACCOUNT.Currency];
-                $("idNewShare").innerText=parseFloat($("idPCoin").value)/FLOAT_FROM_COIN(PoolState.coin)*100;
-            }
+            var PoolState=GetPoolState(U_ACCOUNT.Currency)||0;
+            $("idPShare").innerText=PoolState.share?UState.share/PoolState.share:0;
+            $("idPCurr").innerText=MapCurrency[U_ACCOUNT.Currency];
+            $("idNewShare").innerText=PoolState?parseFloat($("idPCoin").value)/FLOAT_FROM_COIN(PoolState.coin)*100:0;
         }
         if(U_ACCOUNT.Currency&&!InfoWait)
         {
@@ -302,6 +297,11 @@ function UpdatePoolState(ArrPoolAcc)
     })
 }
 
+function NumFormat(num)
+{
+    return Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(Math.abs(num));
+}
+
 function UpdatePoolIO(i)
 {
     var PoolState=GetPoolState($("idPPool").value);
@@ -360,11 +360,11 @@ function GetPoolByCurrency(curr)
     return 0;    
 }
 
-function GetPoolState(poolAcc)
+function GetPoolState(curr)
 {
     for(var i=0; i<ArrPoolState.length; i++)
     {
-        if(poolAcc==ArrPoolState[i].Num)
+        if(curr==ArrPoolState[i].Currency)
             return ArrPoolState[i];
     }
     return 0;
@@ -413,7 +413,6 @@ function UpdatePoolList()
             var lstPool=GetPoolList();
             FillSelect("idOutputPool",lstPool);
             FillSelect("idInputPool",lstPool);
-            FillSelect("idPPool",lstPool);
         }
     });
 }
@@ -564,10 +563,10 @@ function GetPrice(i)
     var ocurr=MapCurrency[OState.Currency];
     var icurr=MapCurrency[IState.Currency];
     var ccurr="TERA"
-    var otoken=FLOAT_FROM_COIN(OState.token);
-    var ocoin=FLOAT_FROM_COIN(OState.coin);
-    var itoken=FLOAT_FROM_COIN(IState.token);
-    var icoin=FLOAT_FROM_COIN(IState.coin);
+    var otoken=OState?FLOAT_FROM_COIN(OState.token):0;
+    var ocoin=OState?FLOAT_FROM_COIN(OState.coin):0;
+    var itoken=OState?FLOAT_FROM_COIN(IState.token):0;
+    var icoin=OState?FLOAT_FROM_COIN(IState.coin):0;
     var output=$("idOutput").value;
     var input=$("idInput").value;
     var AMMA, AMMB;
@@ -1096,9 +1095,9 @@ document.body.insertAdjacentHTML("afterBegin",symbols);
 </div>
 <div class="v-2"></div>
 
-<!--SLIDE-->
+<!--SLIPPAGE-->
 <div class="w-80 v-10x box-row text-center border-terablue rounded-sm">
-<div class="w-30 text-right">Slide:&nbsp;</div>
+<div class="w-30 text-right">Slippage:&nbsp;</div>
 <div class="w-70 box-row jc-center">
 <div class="w-70"><input class="w-80" type="range" id="idSlide" min="0" max="500" step="1" value="1" onchange="SetSlide(this)" oninput="SetSlide(this)"/></div>
 <div class="w-30"><span id="idSlideRate">0.1</span>%</div>
@@ -1149,24 +1148,20 @@ document.body.insertAdjacentHTML("afterBegin",symbols);
 
 <div class="v-2"></div>
 
-<fieldset class="w-80 v-50 box-col rounded-sm text-center border-terablue">
+<fieldset class="w-80 v-45 box-col rounded-sm text-center border-terablue">
 <legend class="ft-45 ft-bold">Add/Remove Liquidity</legend>
 <div class="w-100 v-90 box-col jc-sa">
-<div class="w-90"><select size="1" id="idPPool"  class="w-60 border-terablue upper ft-50" disabled><option value="0">Loading</option></select></div>
-<div class="w-100 v-70 box-col jc-sa rounded-md" id="idPoolArea">
-<div class="w-90 v-60 box-row">
-<div class="w-70 v-90 box-col jc-sa">
+<div class="w-90 v-50 box-row">
+<div class="w-70 v-90 box-col">
 <div class="w-100 v-30 box-row"><input type="text" class="w-90 text-center border-terablue ft-40" id="idPToken" autocomplete="off" maxLength=12 placeholder="0.00" oninput="UpdatePoolIO(0)" onchange="UpdatePoolIO(0)"><span class="upper" id="idPCurr">TERA</span></div>
 <div class="w-100 v-30 ">+</div>
 <div class="w-100 v-30 box-row"><input type="text" class="w-90 text-center border-terablue ft-40" id="idPCoin" autocomplete="off" maxLength=12 placeholder="0.00" oninput="UpdatePoolIO(1)" onchange="UpdatePoolIO(1)">TERA</div>
 </div>
 <div class="w-30"><span id="idNewShare">0</span>%</div>
 </div>
-<div class="w-90 v-40 box-row jc-sa">
-<div class="w-50"><button class="w-100 btn bg-white upper" id="idAddBtn" onclick='SendMethod("add")'><svg class="sqr-7"><use fill="green" xlink:href="#income"/></svg></button></div>
-<div class="w-50"><button class="w-100 btn bg-white upper" id="idRemoveBtn" onclick='SendMethod("remove")'><svg class="sqr-7"><use fill="brown" xlink:href="#outcome"/></svg></button></div>
-</div>
-
+<div class="w-95 v-25 box-row jc-sa">
+<div class="w-45"><button class="w-100 btn bg-white upper" id="idAddBtn" onclick='SendMethod("add")'><svg class="sqr-7"><use fill="green" xlink:href="#income"/></svg></button></div>
+<div class="w-45"><button class="w-100 btn bg-white upper" id="idRemoveBtn" onclick='SendMethod("remove")'><svg class="sqr-7"><use fill="brown" xlink:href="#outcome"/></svg></button></div>
 </div>
 
 <div class="w-90 text-left">Your Share: <span id="idPShare">0</span></div>
